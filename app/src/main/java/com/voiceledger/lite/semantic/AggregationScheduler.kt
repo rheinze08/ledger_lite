@@ -44,7 +44,7 @@ object AggregationScheduler {
         workManager.cancelUniqueWork(PERIODIC_WORK_NAME)
         workManager.enqueueUniqueWork(
             SCHEDULED_WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             request,
         )
     }
