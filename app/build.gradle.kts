@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,6 +7,37 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
 }
+
+val localConfig = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use(::load)
+    }
+}
+
+val keystoreConfig = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) {
+        file.inputStream().use(::load)
+    }
+}
+
+fun signingValue(name: String): String? =
+    providers.gradleProperty(name).orNull
+        ?: providers.environmentVariable(name).orNull
+        ?: keystoreConfig.getProperty(name)
+        ?: localConfig.getProperty(name)
+
+val releaseStoreFilePath = signingValue("RELEASE_STORE_FILE")
+val releaseStorePassword = signingValue("RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = signingValue("RELEASE_KEY_ALIAS")
+val releaseKeyPassword = signingValue("RELEASE_KEY_PASSWORD")
+val releaseKeystoreFile = releaseStoreFilePath?.takeIf { it.isNotBlank() }?.let(rootProject::file)
+val hasReleaseSigning =
+    releaseKeystoreFile?.exists() == true &&
+        !releaseStorePassword.isNullOrBlank() &&
+        !releaseKeyAlias.isNullOrBlank() &&
+        !releaseKeyPassword.isNullOrBlank()
 
 android {
     namespace = "com.voiceledger.lite"
@@ -16,11 +49,38 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField(
+            "String",
+            "SUMMARY_MODEL_URL",
+            "\"https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm?download=true\"",
+        )
+        buildConfigField(
+            "String",
+            "EMBEDDING_MODEL_URL",
+            "\"https://storage.googleapis.com/download.tensorflow.org/models/tflite_support/searcher/text_to_image_blogpost/text_embedder.tflite\"",
+        )
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = releaseKeystoreFile
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -35,10 +95,12 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs += "-Xskip-metadata-version-check"
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -64,9 +126,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.work:work-multiprocess:2.9.1")
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
-    implementation("com.google.mediapipe:tasks-genai:0.10.33")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.10.0")
     implementation("com.google.mediapipe:tasks-text:0.10.33")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
@@ -75,4 +138,10 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+if (!hasReleaseSigning) {
+    logger.lifecycle(
+        "Release signing is not configured. Set RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD via Gradle properties, environment variables, or a local keystore.properties file to build a signed release APK.",
+    )
 }

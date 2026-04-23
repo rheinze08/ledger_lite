@@ -80,3 +80,13 @@ data class SemanticDocument(
     val noteIds: List<Long>,
     val createdAtEpochMs: Long,
 )
+
+enum class SearchStrategy {
+    SEMANTIC,
+    BROAD_SCAN,
+}
+
+data class BroadScanParams(
+    val fromEpochMs: Long? = null,
+    val toEpochMs: Long? = null,
+)

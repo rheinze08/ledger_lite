@@ -55,19 +55,19 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.9"
+          gradle-version: "8.13"
 
       - name: Build debug APK
         run: gradle :app:assembleDebug
 
       - name: Rename APK for distribution
-        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/voice-ledger-lite-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/ledger-lite-debug.apk
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: voice-ledger-lite-debug-apk
-          path: app/build/outputs/apk/debug/voice-ledger-lite-debug.apk
+          name: ledger-lite-debug-apk
+          path: app/build/outputs/apk/debug/ledger-lite-debug.apk
           retention-days: 14
 
       - name: Upload APK to published release
@@ -76,7 +76,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "${{ github.event.release.tag_name }}" \
-            app/build/outputs/apk/debug/voice-ledger-lite-debug.apk#voice-ledger-lite-debug.apk \
+            app/build/outputs/apk/debug/ledger-lite-debug.apk#ledger-lite-debug.apk \
             --clobber
 
       - name: Create or update release from manual run
@@ -84,12 +84,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ inputs.tag_name }}
-          APK_PATH: app/build/outputs/apk/debug/voice-ledger-lite-debug.apk
+          APK_PATH: app/build/outputs/apk/debug/ledger-lite-debug.apk
         run: |
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release upload "$TAG_NAME" "$APK_PATH#voice-ledger-lite-debug.apk" --clobber
+            gh release upload "$TAG_NAME" "$APK_PATH#ledger-lite-debug.apk" --clobber
           else
-            gh release create "$TAG_NAME" "$APK_PATH#voice-ledger-lite-debug.apk" \
-              --title "Voice Ledger Lite $TAG_NAME" \
+            gh release create "$TAG_NAME" "$APK_PATH#ledger-lite-debug.apk" \
+              --title "Ledger Lite $TAG_NAME" \
               --notes "Debug APK built from GitHub Actions for quick installation and testing."
           fi

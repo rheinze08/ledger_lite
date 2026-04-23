@@ -6,6 +6,7 @@ import com.voiceledger.lite.semantic.AggregationCheckpoint
 import com.voiceledger.lite.semantic.RollupSnapshot
 import com.voiceledger.lite.semantic.ThemeBucket
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.min
@@ -43,18 +44,148 @@ class LedgerRepository(
 
     suspend fun allNotesAscending(): List<NoteEntity> = noteDao.allAscending()
 
+    suspend fun exportBaseDocumentsJson(): String {
+        val notes = noteDao.allWithLabelsAscending().map { noteWithLabels ->
+            LedgerCorpusNote(
+                title = noteWithLabels.note.title,
+                body = noteWithLabels.note.body,
+                createdAtEpochMs = noteWithLabels.note.createdAtEpochMs,
+                createdAtDate = Instant.ofEpochMilli(noteWithLabels.note.createdAtEpochMs)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                    .toString(),
+                tags = noteWithLabels.labels.map(LabelEntity::name).sorted(),
+            )
+        }
+        return json.encodeToString(
+            LedgerCorpusExport(
+                exportedAtEpochMs = System.currentTimeMillis(),
+                notes = notes,
+            ),
+        )
+    }
+
+    suspend fun importBaseDocumentsJson(
+        rawJson: String,
+        maxTags: Int,
+    ): LedgerCorpusImportResult {
+        val payload = runCatching {
+            json.decodeFromString<LedgerCorpusExport>(rawJson)
+        }.getOrElse { exception ->
+            error("Import file could not be read. ${exception.message ?: "Invalid JSON."}")
+        }
+        require(payload.notes.isNotEmpty()) { "Import file does not contain any notes." }
+
+        val existingLabels = labelDao.all()
+        val existingLabelKeys = existingLabels.map(LabelEntity::normalizedName).toMutableSet()
+        val importedTagNamesByKey = linkedMapOf<String, String>()
+        payload.notes.forEach { note ->
+            note.tags.forEach { rawTag ->
+                val displayName = normalizeLabelDisplay(rawTag)
+                if (displayName.isNotBlank()) {
+                    importedTagNamesByKey.putIfAbsent(normalizeLabelKey(displayName), displayName)
+                }
+            }
+        }
+        val missingTagNames = importedTagNamesByKey
+            .filterKeys { it !in existingLabelKeys }
+            .values
+            .sortedBy { it.lowercase(Locale.ROOT) }
+        if (existingLabels.size + missingTagNames.size > maxTags) {
+            error(
+                buildString {
+                    append("Import would exceed the $maxTags tag limit. ")
+                    append("Missing tags: ")
+                    append(missingTagNames.joinToString(", "))
+                    append(".")
+                },
+            )
+        }
+
+        val normalizedNotes = payload.notes.map(::normalizeImportedNote)
+        val existingSignatures = noteDao.allWithLabelsAscending()
+            .mapTo(mutableSetOf(), ::noteSignature)
+        var createdTags = 0
+        var importedNotes = 0
+        var skippedNotes = 0
+        var earliestImportedEpochMs: Long? = null
+
+        database.withTransaction {
+            val labelIdsByKey = labelDao.all().associateBy(LabelEntity::normalizedName).toMutableMap()
+            importedTagNamesByKey.forEach { (normalizedName, displayName) ->
+                if (normalizedName !in labelIdsByKey) {
+                    val labelId = labelDao.insert(
+                        LabelEntity(
+                            name = displayName,
+                            normalizedName = normalizedName,
+                            createdAtEpochMs = System.currentTimeMillis(),
+                        ),
+                    )
+                    val created = labelDao.getById(labelId) ?: error("Tag import failed.")
+                    labelIdsByKey[normalizedName] = created
+                    createdTags += 1
+                }
+            }
+
+            normalizedNotes.forEach { note ->
+                val signature = importedNoteSignature(note)
+                if (!existingSignatures.add(signature)) {
+                    skippedNotes += 1
+                    return@forEach
+                }
+                val savedId = noteDao.insert(
+                    NoteEntity(
+                        title = note.title,
+                        body = note.body,
+                        createdAtEpochMs = note.createdAtEpochMs,
+                        updatedAtEpochMs = System.currentTimeMillis(),
+                    ),
+                )
+                val labelRefs = note.tagKeys.mapNotNull { normalizedName ->
+                    labelIdsByKey[normalizedName]?.id?.let { labelId ->
+                        NoteLabelCrossRef(noteId = savedId, labelId = labelId)
+                    }
+                }
+                if (labelRefs.isNotEmpty()) {
+                    noteDao.insertLabelRefs(labelRefs)
+                }
+                importedNotes += 1
+                earliestImportedEpochMs = earliestImportedEpochMs
+                    ?.let { min(it, note.createdAtEpochMs) }
+                    ?: note.createdAtEpochMs
+            }
+
+            earliestImportedEpochMs?.let { dirtyFrom ->
+                markDirtyFromInternal(floorToDayStart(dirtyFrom))
+            }
+        }
+
+        return LedgerCorpusImportResult(
+            importedNotes = importedNotes,
+            skippedNotes = skippedNotes,
+            createdTags = createdTags,
+            earliestImportedEpochMs = earliestImportedEpochMs,
+        )
+    }
+
     suspend fun getNote(noteId: Long): NoteEntity? = noteDao.getById(noteId)
 
     suspend fun getNoteWithLabels(noteId: Long): NoteWithLabels? = noteDao.getWithLabelsById(noteId)
 
     suspend fun allLabels(): List<LabelEntity> = labelDao.all()
 
-    suspend fun saveNote(noteId: Long?, title: String, body: String, labelIds: Set<Long>): Long {
+    suspend fun saveNote(
+        noteId: Long?,
+        title: String,
+        body: String,
+        labelIds: Set<Long>,
+        createdAtEpochMs: Long,
+    ): Long {
         val now = System.currentTimeMillis()
         val cleanedTitle = title.trim()
         val cleanedBody = body.trim()
         val distinctLabelIds = labelIds.distinct()
-        var dirtyEpochMs = now
+        var dirtyEpochMs = createdAtEpochMs
         var savedId = noteId ?: 0
 
         database.withTransaction {
@@ -63,25 +194,26 @@ class LedgerRepository(
                     NoteEntity(
                         title = cleanedTitle,
                         body = cleanedBody,
-                        createdAtEpochMs = now,
+                        createdAtEpochMs = createdAtEpochMs,
                         updatedAtEpochMs = now,
                     ),
                 )
             } else {
                 val existing = noteDao.getById(noteId)
-                dirtyEpochMs = existing?.createdAtEpochMs ?: now
+                dirtyEpochMs = existing?.createdAtEpochMs?.let { min(it, createdAtEpochMs) } ?: createdAtEpochMs
                 val note = if (existing == null) {
                     NoteEntity(
                         id = noteId,
                         title = cleanedTitle,
                         body = cleanedBody,
-                        createdAtEpochMs = now,
+                        createdAtEpochMs = createdAtEpochMs,
                         updatedAtEpochMs = now,
                     )
                 } else {
                     existing.copy(
                         title = cleanedTitle,
                         body = cleanedBody,
+                        createdAtEpochMs = createdAtEpochMs,
                         updatedAtEpochMs = now,
                     )
                 }
@@ -208,8 +340,31 @@ class LedgerRepository(
         return rollupDao.observeAllOnce().map(::toRollupSnapshot)
     }
 
+    suspend fun getRollup(rollupId: String): RollupSnapshot? {
+        return rollupDao.getById(rollupId)?.let(::toRollupSnapshot)
+    }
+
     suspend fun rollupsByGranularity(granularity: RollupGranularity): List<RollupSnapshot> {
         return rollupDao.byGranularityAscending(granularity.name).map(::toRollupSnapshot)
+    }
+
+    suspend fun updateRollupContent(
+        rollupId: String,
+        title: String,
+        overview: String,
+    ): RollupSnapshot {
+        val cleanedTitle = title.trim()
+        val cleanedOverview = overview.trim()
+        return database.withTransaction {
+            val existing = rollupDao.getById(rollupId)
+                ?: error("That generated summary no longer exists.")
+            val updated = existing.copy(
+                title = cleanedTitle,
+                overview = cleanedOverview,
+            )
+            rollupDao.replace(updated)
+            toRollupSnapshot(updated)
+        }
     }
 
     suspend fun replaceSemanticEntry(entry: SemanticEntryEntity) {
@@ -306,4 +461,78 @@ class LedgerRepository(
     private fun normalizeLabelKey(value: String): String {
         return normalizeLabelDisplay(value).lowercase(Locale.ROOT)
     }
+
+    private fun normalizeImportedNote(note: LedgerCorpusNote): ImportedNote {
+        val title = note.title.trim().ifBlank {
+            note.body.lineSequence().firstOrNull()?.trim()?.take(48) ?: "Untitled note"
+        }
+        val body = note.body.trim()
+        require(body.isNotBlank()) { "Imported notes must have a body." }
+        val createdAtEpochMs = note.createdAtEpochMs
+            ?: note.createdAtDate
+                ?.trim()
+                ?.takeIf(String::isNotBlank)
+                ?.let { dateString ->
+                    runCatching {
+                        LocalDate.parse(dateString)
+                            .atStartOfDay(ZoneId.systemDefault())
+                            .toInstant()
+                            .toEpochMilli()
+                    }.getOrElse {
+                        error("Import note date must use YYYY-MM-DD.")
+                    }
+                }
+            ?: error("Imported notes must include a createdAt date.")
+        val tagKeys = note.tags.mapNotNull { rawTag ->
+            normalizeLabelDisplay(rawTag).takeIf(String::isNotBlank)?.let(::normalizeLabelKey)
+        }.distinct().sorted()
+        return ImportedNote(
+            title = title,
+            body = body,
+            createdAtEpochMs = createdAtEpochMs,
+            tagKeys = tagKeys,
+        )
+    }
+
+    private fun noteSignature(note: NoteWithLabels): String {
+        return signature(
+            title = note.note.title,
+            body = note.note.body,
+            createdAtEpochMs = note.note.createdAtEpochMs,
+            tagKeys = note.labels.map(LabelEntity::normalizedName).sorted(),
+        )
+    }
+
+    private fun importedNoteSignature(note: ImportedNote): String {
+        return signature(
+            title = note.title,
+            body = note.body,
+            createdAtEpochMs = note.createdAtEpochMs,
+            tagKeys = note.tagKeys,
+        )
+    }
+
+    private fun signature(
+        title: String,
+        body: String,
+        createdAtEpochMs: Long,
+        tagKeys: List<String>,
+    ): String {
+        return buildString {
+            append(title.trim())
+            append('\u001F')
+            append(body.trim())
+            append('\u001F')
+            append(createdAtEpochMs)
+            append('\u001F')
+            append(tagKeys.joinToString("|"))
+        }
+    }
+
+    private data class ImportedNote(
+        val title: String,
+        val body: String,
+        val createdAtEpochMs: Long,
+        val tagKeys: List<String>,
+    )
 }

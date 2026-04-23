@@ -1,0 +1,42 @@
+[
+  {
+    "id": "doc-001",
+    "date": "2026-04-15",
+    "content": "Reviewed Q1 revenue numbers with the finance team. Subscription revenue grew 23% year over year, driven by the new enterprise tier launched in February. Support ticket volume dropped after the self-serve onboarding flow shipped. Action item: ship churn dashboard before Thursday."
+  },
+  {
+    "id": "doc-002",
+    "date": "2026-04-16",
+    "content": "Interviewed three candidates for the staff backend role. Strongest signal was Rina, who has deep experience with Postgres partitioning and idempotent event pipelines. Offer approval is blocked on compensation committee review. Backup candidate: Marcus, former tech lead at a payments startup."
+  },
+  {
+    "id": "doc-003",
+    "date": "2026-04-17",
+    "content": "Investigated a latency regression in the search endpoint. Root cause was a missing index on the newly added labels table; P99 went from 120ms to 850ms overnight. Added the index and backfilled stats. Followups: add an alert for index-scan ratios and write a postmortem by Friday."
+  },
+  {
+    "id": "doc-004",
+    "date": "2026-04-18",
+    "content": "Customer call with Acme Corp. Their main concern is data residency for the EU region. Proposed spinning up a Frankfurt deployment by end of Q2. They are also interested in SSO via Okta. Contract renewal is due June 30; deal size is roughly $180k ARR."
+  },
+  {
+    "id": "doc-005",
+    "date": "2026-04-19",
+    "content": "Weekend reading: skimmed the new paper on retrieval-augmented generation with hierarchical indexing. The key idea is to cluster documents into coarse topic centroids before doing fine-grained similarity search, cutting retrieval time without hurting recall. Might prototype this for the internal knowledge base next sprint."
+  },
+  {
+    "id": "doc-006",
+    "date": "2026-04-20",
+    "content": "Product planning meeting for Q2. Priorities in order: (1) EU data residency for enterprise customers, (2) real-time collaboration on shared documents, (3) native mobile app parity for voice notes. Dropped from the roadmap: the Slack bot integration, since usage metrics were under 3% of active teams."
+  },
+  {
+    "id": "doc-007",
+    "date": "2026-04-21",
+    "content": "Pair programming with Sam on the label-editor UI. Refactored the tag chip component to use compound components, which simplifies the selection state and gets rid of three useEffect hooks. Tests pass locally; need to verify on mobile Safari before merging. Opened PR #412."
+  },
+  {
+    "id": "doc-008",
+    "date": "2026-04-22",
+    "content": "Postmortem for the April 17 search outage. Contributing factors: migration deployed without the follow-up index, monitoring only tracked error rate, not latency percentiles. Action items: add P99 latency alerts, require index coverage review for any new table above 100k rows, add a pre-deploy checklist item."
+  }
+]

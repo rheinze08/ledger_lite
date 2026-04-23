@@ -9,6 +9,9 @@ import androidx.room.Junction
 import androidx.room.PrimaryKey
 import androidx.room.Relation
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.ResolverStyle
 
 @Entity(tableName = "notes")
 data class NoteEntity(
@@ -124,11 +127,12 @@ data class LocalAiSettings(
     val summaryModelPath: String = "",
     val embeddingModelPath: String = "",
     val summaryStartDate: String = "",
-    val maxSourcesPerRollup: Int = 18,
+    val backgroundProcessingTime: String = DEFAULT_BACKGROUND_PROCESSING_TIME,
+    val maxSourcesPerRollup: Int = 8,
     val embeddingDimensions: Int = 192,
     val searchResultLimit: Int = 8,
-    val maxTokens: Int = 1024,
-    val topK: Int = 32,
+    val maxTokens: Int = 2048,
+    val topK: Int = 24,
     val temperature: Float = 0.2f,
     val backgroundProcessingEnabled: Boolean = true,
 ) {
@@ -136,15 +140,17 @@ data class LocalAiSettings(
         val normalizedStartDate = summaryStartDate.trim().takeIf {
             runCatching { LocalDate.parse(it) }.isSuccess
         }.orEmpty()
+        val normalizedBackgroundTime = normalizeBackgroundProcessingTime(backgroundProcessingTime)
         return copy(
             summaryModelPath = summaryModelPath.trim(),
             embeddingModelPath = embeddingModelPath.trim(),
             summaryStartDate = normalizedStartDate,
-            maxSourcesPerRollup = maxSourcesPerRollup.coerceIn(4, 64),
+            backgroundProcessingTime = normalizedBackgroundTime,
+            maxSourcesPerRollup = maxSourcesPerRollup.coerceIn(4, 12),
             embeddingDimensions = embeddingDimensions.coerceIn(32, 768),
             searchResultLimit = searchResultLimit.coerceIn(3, 20),
-            maxTokens = maxTokens.coerceIn(256, 4096),
-            topK = topK.coerceIn(1, 64),
+            maxTokens = maxTokens.coerceIn(512, 4096),
+            topK = topK.coerceIn(1, 32),
             temperature = temperature.coerceIn(0f, 1f),
         )
     }
@@ -155,3 +161,20 @@ data class LocalStats(
     val notesThisWeek: Int = 0,
     val notesThisMonth: Int = 0,
 )
+
+const val DEFAULT_BACKGROUND_PROCESSING_TIME = "02:00"
+
+fun isValidBackgroundProcessingTime(value: String): Boolean {
+    return runCatching {
+        LocalTime.parse(
+            value.trim(),
+            DateTimeFormatter.ofPattern("HH:mm").withResolverStyle(ResolverStyle.STRICT),
+        )
+    }.isSuccess
+}
+
+fun normalizeBackgroundProcessingTime(value: String): String {
+    return value.trim()
+        .takeIf(::isValidBackgroundProcessingTime)
+        ?: DEFAULT_BACKGROUND_PROCESSING_TIME
+}

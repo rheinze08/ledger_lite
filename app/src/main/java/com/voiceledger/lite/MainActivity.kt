@@ -31,8 +31,9 @@ class MainActivity : ComponentActivity() {
             coordinator = coordinator,
         )
 
-        if (settingsStore.load().backgroundProcessingEnabled) {
-            AggregationScheduler.schedulePeriodic(applicationContext)
+        val settings = settingsStore.load()
+        if (settings.backgroundProcessingEnabled) {
+            AggregationScheduler.scheduleDaily(applicationContext, settings)
         }
 
         setContent {

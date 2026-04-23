@@ -129,6 +129,18 @@
       letter-spacing: -0.03em;
     }
 
+    .download-strip-brand .subheader {
+      margin-top: 6px;
+      font-size: 0.92rem;
+      color: rgba(244, 251, 248, 0.82);
+    }
+
+    .download-strip-brand .subheader a {
+      color: #f4fbf8;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
     .download-strip-copy .fine {
       color: rgba(244, 251, 248, 0.84);
       max-width: 68ch;
@@ -204,9 +216,9 @@
     }
 
     h1 {
-      max-width: 12ch;
-      font-size: clamp(2.8rem, 7vw, 5rem);
-      line-height: 0.93;
+      max-width: 18ch;
+      font-size: clamp(2.2rem, 5.2vw, 4.2rem);
+      line-height: 0.94;
       letter-spacing: -0.045em;
     }
 
@@ -515,29 +527,25 @@
         <div class="download-strip-brand">
           <img src="voice_ledger_lite_logo.png" alt="Ledger Lite logo" />
           <div class="stack">
-            <h2>Download the Android test build</h2>
+            <h2>Ledger Lite</h2>
+            <div class="subheader">
+              Developed by <a href="https://rheinze08.github.io/Datawiseguysllc/" target="_blank" rel="noopener noreferrer">DataWiseguys, LLC.</a>
+            </div>
           </div>
         </div>
-        <p class="fine">
-          Start with the APK, then let the app install its local AI models on first launch.
-          The summary model is the heavy part of the download, so plan on Wi-Fi and a few gigabytes of free space.
-        </p>
       </div>
       <div class="download-strip-actions">
         <a class="button button-primary button-large" id="apk-link" href="https://github.com/rheinze08/voice_ledger_lite/releases/latest/download/ledger-lite-debug.apk">Download Latest APK</a>
-        <div class="download-strip-meta" id="release-detail">
-          Looking up the newest release asset named <span class="code">ledger-lite-debug.apk</span>.
-        </div>
       </div>
     </section>
 
     <section class="hero">
       <div class="hero-copy">
         <div class="stack">
-          <h1>Phone-local notes, summaries, and ask.</h1>
+          <h1>Write privately.<br />Summarize instantly.<br />Ask freely.</h1>
           <p class="lede">
-            Ledger Lite is an Android app for capturing notes locally, generating daily to yearly summary documents on-device,
-            and querying your own data without standing up a separate server.
+            Ledger Lite is a FREE Android app for capturing notes locally, generating daily to yearly summary documents on-device,
+            and querying your own data. Your data remains on your device and is never transmitted.
           </p>
         </div>
         <div class="actions">
@@ -546,8 +554,8 @@
         </div>
         <div class="callout">
           <strong>What to expect on first launch:</strong>
-          the app opens to a setup screen and downloads its local AI models into app-private storage.
-          Leave it open on Wi-Fi. The summary model is large and dominates the first-run download.
+          the app opens to a setup screen and downloads its local AI models into app-private storage. Leave it open on Wi-Fi;
+          the summary model is large and dominates the first-run download.
         </div>
       </div>
 
@@ -590,32 +598,28 @@
         <div class="metric-note">Download size is smaller than this, but the device still needs room for extraction and app data.</div>
       </article>
       <article class="metric">
-        <div class="metric-label">Minimum Android</div>
+        <div class="metric-label">Minimum Android OS</div>
         <div class="metric-value">8.0</div>
         <div class="metric-note">The current app build targets API 35 and requires at least Android 8.0.</div>
       </article>
       <article class="metric">
-        <div class="metric-label">No account required</div>
-        <div class="metric-value">Local-first</div>
-        <div class="metric-note">Notes stay on-device. The app does not require a PC-side server to run.</div>
+        <div class="metric-label">Privacy</div>
+        <div class="metric-value">Private</div>
+        <div class="metric-note">Your data stays on your device and is never transmitted.</div>
       </article>
     </section>
 
     <section class="panel">
       <div class="section-title">
         <h2>Screens</h2>
-        <p>
-          The cards below are ready for screenshots. If you want to add your own app captures later, drop files into
-          <span class="code">docs/screenshots/</span> using the filenames shown in each placeholder.
-        </p>
       </div>
 
       <div class="screen-grid">
         <article class="screen-card">
-          <div class="shot" data-files="screenshots/setup.png,screenshots/setup.jpg,screenshots/setup.jpeg">
+          <div class="shot" data-files="docs/screenshots/setup.jpg,docs/screenshots/setup.jpeg,docs/screenshots/setup.png">
             <div class="shot-placeholder">
               Add a setup screenshot at<br />
-              <span class="code">docs/screenshots/setup.png</span>
+              <span class="code">docs/screenshots/setup.jpg</span>
             </div>
           </div>
           <div class="screen-body">
@@ -632,10 +636,10 @@
         </article>
 
         <article class="screen-card">
-          <div class="shot" data-files="screenshots/notes.png,screenshots/notes.jpg,screenshots/notes.jpeg">
+          <div class="shot" data-files="docs/screenshots/notes.jpg,docs/screenshots/notes.jpeg,docs/screenshots/notes.png">
             <div class="shot-placeholder">
               Add a Notes screenshot at<br />
-              <span class="code">docs/screenshots/notes.png</span>
+              <span class="code">docs/screenshots/notes.jpg</span>
             </div>
           </div>
           <div class="screen-body">
@@ -652,10 +656,10 @@
         </article>
 
         <article class="screen-card">
-          <div class="shot" data-files="screenshots/compose.png,screenshots/compose.jpg,screenshots/compose.jpeg">
+          <div class="shot" data-files="docs/screenshots/compose.jpg,docs/screenshots/compose.jpeg,docs/screenshots/compose.png">
             <div class="shot-placeholder">
               Add a Compose screenshot at<br />
-              <span class="code">docs/screenshots/compose.png</span>
+              <span class="code">docs/screenshots/compose.jpg</span>
             </div>
           </div>
           <div class="screen-body">
@@ -672,10 +676,10 @@
         </article>
 
         <article class="screen-card">
-          <div class="shot" data-files="screenshots/ask.png,screenshots/ask.jpg,screenshots/ask.jpeg">
+          <div class="shot" data-files="docs/screenshots/ask.jpg,docs/screenshots/ask.jpeg,docs/screenshots/ask.png">
             <div class="shot-placeholder">
               Add an Ask screenshot at<br />
-              <span class="code">docs/screenshots/ask.png</span>
+              <span class="code">docs/screenshots/ask.jpg</span>
             </div>
           </div>
           <div class="screen-body">
@@ -692,10 +696,10 @@
         </article>
 
         <article class="screen-card">
-          <div class="shot" data-files="screenshots/summarize.png,screenshots/summarize.jpg,screenshots/summarize.jpeg">
+          <div class="shot" data-files="docs/screenshots/summarize.jpg,docs/screenshots/summarize.jpeg,docs/screenshots/summarize.png">
             <div class="shot-placeholder">
               Add a Summarize screenshot at<br />
-              <span class="code">docs/screenshots/summarize.png</span>
+              <span class="code">docs/screenshots/summarize.jpg</span>
             </div>
           </div>
           <div class="screen-body">
@@ -797,21 +801,34 @@
       const image = new Image();
       image.alt = "Ledger Lite screenshot";
       image.loading = "lazy";
-      image.src = src;
       image.addEventListener("load", () => {
-        container.innerHTML = "";
-        container.appendChild(image);
+        container.replaceChildren(image);
       });
+      image.addEventListener("error", () => {
+        container.replaceChildren(
+          Object.assign(document.createElement("div"), {
+            className: "shot-placeholder",
+            textContent: `Could not load ${src}`,
+          }),
+        );
+      });
+      image.src = src;
     }
 
     function tryScreenshot(container, candidates, index = 0) {
       if (index >= candidates.length) {
+        container.replaceChildren(
+          Object.assign(document.createElement("div"), {
+            className: "shot-placeholder",
+            textContent: "Screenshot not found.",
+          }),
+        );
         return;
       }
       const probe = new Image();
-      probe.src = candidates[index];
       probe.addEventListener("load", () => mountScreenshot(container, candidates[index]));
       probe.addEventListener("error", () => tryScreenshot(container, candidates, index + 1));
+      probe.src = candidates[index];
     }
 
     document.querySelectorAll(".shot").forEach((container) => {

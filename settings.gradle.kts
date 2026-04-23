@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "voice-ledger-lite"
+rootProject.name = "ledger-lite"
 include(":app")

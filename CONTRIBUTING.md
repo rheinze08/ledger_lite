@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for taking a look at Voice Ledger Lite.
+Thanks for taking a look at Ledger Lite.
 
 ## Before You Open A PR
 

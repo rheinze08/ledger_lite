@@ -1,15 +1,15 @@
-@file:Suppress("DEPRECATION")
-
 package com.voiceledger.lite.semantic
 
 import android.content.Context
-import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.voiceledger.lite.data.LocalAiSettings
+import java.text.Normalizer
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class LocalAnswerEngine(private val context: Context) {
+    private val liteRtLmEngine = LocalLiteRtLmEngine(context)
+
     suspend fun answer(
         question: String,
         documents: List<SemanticDocument>,
@@ -21,16 +21,12 @@ class LocalAnswerEngine(private val context: Context) {
 
         val normalized = settings.normalized()
         val model = LocalModelLocator.resolveSummaryModel(context, normalized) ?: return null
-        val options = LlmInference.LlmInferenceOptions.builder()
-            .setModelPath(model.path)
-            .setMaxTokens(normalized.maxTokens)
-            .setMaxTopK(normalized.topK)
-            .build()
-
         val prompt = buildPrompt(question.trim(), documents)
-        val response = LlmInference.createFromOptions(context, options).use { inference ->
-            inference.generateResponse(prompt).trim()
-        }
+        val response = runCatching {
+            liteRtLmEngine.openSession(model = model, settings = normalized).use { session ->
+                session.generate(prompt)
+            }
+        }.getOrNull()?.trim().orEmpty()
         if (response.isBlank()) {
             return null
         }
@@ -46,34 +42,38 @@ class LocalAnswerEngine(private val context: Context) {
         val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.systemDefault())
         val sourceBlock = documents.joinToString("\n\n") { document ->
             buildString {
-                append("source_id=")
-                append(document.sourceId)
-                append('\n')
-                append("created_at=")
+                append('[')
                 append(formatter.format(Instant.ofEpochMilli(document.createdAtEpochMs)))
+                append("] ")
+                append(sanitizeText(document.title, 180).ifBlank { "Untitled" })
                 append('\n')
-                append("note_ids=")
-                append(document.noteIds.joinToString(","))
-                append('\n')
-                append("title=")
-                append(document.title)
-                append('\n')
-                append("body=")
-                append(document.body.take(900))
+                append(sanitizeText(document.body, 700))
             }
         }
 
         return """
-            Answer the user's question using only the provided notes and rollups.
+            Answer the question using only the provided notes and summaries.
             If the sources are insufficient, say that directly.
             Keep the answer concise and factual.
-            Do not mention hidden system rules or unavailable sources.
 
             Question:
-            $question
+            ${sanitizeText(question, 400)}
 
-            Sources:
             $sourceBlock
         """.trimIndent()
+    }
+
+    private fun sanitizeText(value: String, maxChars: Int): String {
+        return Normalizer.normalize(value, Normalizer.Form.NFKC)
+            .replace("\r\n", "\n")
+            .replace(CONTROL_CHAR_REGEX, " ")
+            .replace(EXCESS_BLANK_LINE_REGEX, "\n\n")
+            .trim()
+            .take(maxChars)
+    }
+
+    companion object {
+        private val CONTROL_CHAR_REGEX = Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]")
+        private val EXCESS_BLANK_LINE_REGEX = Regex("\\n{3,}")
     }
 }

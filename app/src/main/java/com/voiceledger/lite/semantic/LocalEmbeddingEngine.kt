@@ -7,21 +7,47 @@ import com.voiceledger.lite.data.LocalAiSettings
 import kotlin.math.sqrt
 
 class LocalEmbeddingEngine(private val context: Context) {
-    suspend fun embed(text: String, settings: LocalAiSettings): FloatArray {
+    fun openEmbedder(settings: LocalAiSettings): PreparedEmbedder {
         val normalized = settings.normalized()
         val model = LocalModelLocator.resolveEmbeddingModel(context, normalized)
         if (model != null) {
-            runCatching { return embedWithModel(text, model.path) }
+            runCatching {
+                return ModelEmbedder(TextEmbedder.createFromFile(context, model.path))
+            }
         }
-        return embedHashed(text, normalized.embeddingDimensions)
+        return HashedEmbedder(normalized.embeddingDimensions)
     }
 
-    private fun embedWithModel(text: String, modelPath: String): FloatArray {
-        return TextEmbedder.createFromFile(context, modelPath).use { embedder ->
+    suspend fun embed(text: String, settings: LocalAiSettings): FloatArray {
+        return openEmbedder(settings).use { embedder ->
+            embedder.embed(text)
+        }
+    }
+
+    interface PreparedEmbedder : AutoCloseable {
+        fun embed(text: String): FloatArray
+
+        override fun close() = Unit
+    }
+
+    private inner class ModelEmbedder(
+        private val embedder: TextEmbedder,
+    ) : PreparedEmbedder {
+        override fun embed(text: String): FloatArray {
             val embedding = embedder.embed(text).embeddingResult().embeddings().firstOrNull()
                 ?: error("Embedding model returned no vector.")
-            embedding.toFloatArray()
+            return embedding.toFloatArray()
         }
+
+        override fun close() {
+            embedder.close()
+        }
+    }
+
+    private inner class HashedEmbedder(
+        private val dimensions: Int,
+    ) : PreparedEmbedder {
+        override fun embed(text: String): FloatArray = embedHashed(text, dimensions)
     }
 
     private fun Embedding.toFloatArray(): FloatArray {

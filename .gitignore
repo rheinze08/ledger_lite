@@ -1,4 +1,5 @@
 .gradle/
+.gradle-user-home/
 .idea/
 .kotlin/
 build/
@@ -8,8 +9,11 @@ captures/
 .cxx/
 .tools/
 local.properties
+keystore.properties
 *.iml
 *.jks
 *.keystore
 Thumbs.db
 .DS_Store
+__pycache__/
+*.pyc

@@ -31,6 +31,10 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE id IN (:noteIds)")
     suspend fun byIdsWithLabels(noteIds: List<Long>): List<NoteWithLabels>
 
+    @Transaction
+    @Query("SELECT * FROM notes ORDER BY created_at_epoch_ms ASC")
+    suspend fun allWithLabelsAscending(): List<NoteWithLabels>
+
     @Query(
         """
         SELECT * FROM notes
@@ -96,6 +100,9 @@ interface RollupDao {
 
     @Query("SELECT * FROM rollups ORDER BY period_end_epoch_ms DESC")
     suspend fun observeAllOnce(): List<RollupEntity>
+
+    @Query("SELECT * FROM rollups WHERE id = :rollupId LIMIT 1")
+    suspend fun getById(rollupId: String): RollupEntity?
 
     @Query(
         """

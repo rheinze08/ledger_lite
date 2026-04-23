@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Voice Ledger Lite is a small open-source project and currently tracks the `main` branch.
+Ledger Lite is a small open-source project and currently tracks the `main` branch.
 
 ## Reporting A Vulnerability
 

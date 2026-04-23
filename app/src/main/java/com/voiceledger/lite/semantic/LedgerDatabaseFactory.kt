@@ -10,6 +10,9 @@ object LedgerDatabaseFactory {
             context.applicationContext,
             LedgerDatabase::class.java,
             "voice_ledger_lite.db",
-        ).addMigrations(LedgerDatabase.MIGRATION_2_3).build()
+        )
+            .enableMultiInstanceInvalidation()
+            .addMigrations(LedgerDatabase.MIGRATION_2_3)
+            .build()
     }
 }

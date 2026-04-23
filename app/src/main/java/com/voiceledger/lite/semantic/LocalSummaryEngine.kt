@@ -1,25 +1,38 @@
-@file:Suppress("DEPRECATION")
-
 package com.voiceledger.lite.semantic
 
 import android.content.Context
-import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.voiceledger.lite.data.LocalAiSettings
 import com.voiceledger.lite.data.RollupGranularity
+import java.text.Normalizer
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 
 class LocalSummaryEngine(
     private val context: Context,
-    private val json: Json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    },
 ) {
+    private val liteRtLmEngine = LocalLiteRtLmEngine(context)
+
+    fun openSummarizer(settings: LocalAiSettings): PreparedSummarizer {
+        val normalized = settings.normalized()
+        val model = LocalModelLocator.resolveSummaryModel(context, normalized)
+            ?: error("Summary model is not installed.")
+        val session = runCatching {
+            liteRtLmEngine.openSession(model = model, settings = normalized)
+        }.getOrElse { exception ->
+            throw IllegalStateException(
+                "Summary model ${model.label} failed to initialize.",
+                exception,
+            )
+        }
+        return ModelSummarizer(
+            session = session,
+            model = model,
+            maxTokens = normalized.maxTokens.coerceIn(MIN_SUMMARY_TOKENS, MAX_SUMMARY_TOKENS),
+            topK = normalized.topK.coerceAtMost(SUMMARY_TOP_K),
+        )
+    }
+
     suspend fun summarize(
         documents: List<SemanticDocument>,
         granularity: RollupGranularity,
@@ -27,116 +40,76 @@ class LocalSummaryEngine(
         periodEndEpochMs: Long,
         settings: LocalAiSettings,
     ): AggregateInsight {
-        val normalized = settings.normalized()
-        val model = LocalModelLocator.resolveSummaryModel(context, normalized)
-        if (model != null) {
-            runCatching {
-                return summarizeWithModel(
-                    documents = documents,
-                    granularity = granularity,
-                    periodStartEpochMs = periodStartEpochMs,
-                    periodEndEpochMs = periodEndEpochMs,
-                    settings = normalized,
-                    model = model,
-                )
-            }
+        return openSummarizer(settings).use { summarizer ->
+            summarizer.summarize(
+                documents = documents,
+                granularity = granularity,
+                periodStartEpochMs = periodStartEpochMs,
+                periodEndEpochMs = periodEndEpochMs,
+            )
         }
-        return summarizeHeuristically(documents, granularity, periodStartEpochMs, periodEndEpochMs)
     }
 
-    private fun summarizeWithModel(
-        documents: List<SemanticDocument>,
-        granularity: RollupGranularity,
-        periodStartEpochMs: Long,
-        periodEndEpochMs: Long,
-        settings: LocalAiSettings,
-        model: ResolvedLocalModel,
-    ): AggregateInsight {
-        val options = LlmInference.LlmInferenceOptions.builder()
-            .setModelPath(model.path)
-            .setMaxTokens(settings.maxTokens)
-            .setMaxTopK(settings.topK)
-            .build()
+    interface PreparedSummarizer : AutoCloseable {
+        suspend fun summarize(
+            documents: List<SemanticDocument>,
+            granularity: RollupGranularity,
+            periodStartEpochMs: Long,
+            periodEndEpochMs: Long,
+            onDiagnostic: suspend (String) -> Unit = {},
+        ): AggregateInsight
 
-        val prompt = buildPrompt(documents, granularity, periodStartEpochMs, periodEndEpochMs)
-        return LlmInference.createFromOptions(context, options).use { inference ->
-            val rawResponse = inference.generateResponse(prompt)
-            val parsed = json.decodeFromString<ModelInsightPayload>(extractJsonObject(rawResponse))
-            AggregateInsight(
+        override fun close() = Unit
+    }
+
+    private inner class ModelSummarizer(
+        private val session: LocalLiteRtLmEngine.PreparedSession,
+        private val model: ResolvedLocalModel,
+        private val maxTokens: Int,
+        private val topK: Int,
+    ) : PreparedSummarizer {
+        override suspend fun summarize(
+            documents: List<SemanticDocument>,
+            granularity: RollupGranularity,
+            periodStartEpochMs: Long,
+            periodEndEpochMs: Long,
+            onDiagnostic: suspend (String) -> Unit,
+        ): AggregateInsight {
+            onDiagnostic(
+                "Preparing ${documents.size} source document(s), ${documents.sumOf { it.body.length }} body chars before sanitizing",
+            )
+            onDiagnostic("Using LiteRT-LM backend ${session.backendLabel}, maxTokens=$maxTokens, topK=$topK")
+            val prompt = buildPrompt(documents, granularity, periodStartEpochMs, periodEndEpochMs)
+            onDiagnostic(
+                "Prompt built for ${granularity.name.lowercase()} ${formatDateRange(periodStartEpochMs, periodEndEpochMs)} (${prompt.length} chars)",
+            )
+            onDiagnostic("Calling local LiteRT-LM conversation.sendMessage")
+            val rawResponse = runCatching { session.generate(prompt) }.getOrElse { exception ->
+                throw IllegalStateException(
+                    "LiteRT-LM inference failed for ${granularity.name.lowercase()} ${formatDateRange(periodStartEpochMs, periodEndEpochMs)}.",
+                    exception,
+                )
+            }
+            onDiagnostic("LiteRT-LM returned ${rawResponse.length} chars")
+            val overview = sanitizeGeneratedSummary(rawResponse)
+            if (overview.isBlank()) {
+                throw IllegalStateException(
+                    "LiteRT-LM returned no usable summary text for ${granularity.name.lowercase()} ${formatDateRange(periodStartEpochMs, periodEndEpochMs)}.",
+                )
+            }
+            onDiagnostic("Summary response normalized successfully")
+            return AggregateInsight(
                 modelLabel = model.label,
-                title = parsed.title.ifBlank { defaultTitle(granularity, periodStartEpochMs, periodEndEpochMs) },
-                overview = parsed.overview.trim(),
-                highlights = parsed.highlights.map(String::trim).filter(String::isNotBlank).take(5),
-                themes = parsed.themes
-                    .map { ThemeBucket(it.label.trim(), it.summary.trim(), it.noteIds.distinct()) }
-                    .filter { it.label.isNotBlank() && it.summary.isNotBlank() },
-            )
-        }
-    }
-
-    private fun summarizeHeuristically(
-        documents: List<SemanticDocument>,
-        granularity: RollupGranularity,
-        periodStartEpochMs: Long,
-        periodEndEpochMs: Long,
-    ): AggregateInsight {
-        val allText = documents.joinToString(" ") { "${it.title} ${it.body}" }
-        val keywords = topKeywords(allText)
-        val highlights = documents
-            .sortedByDescending { it.createdAtEpochMs }
-            .take(4)
-            .map { document ->
-                buildString {
-                    append(document.title.ifBlank { "Untitled" })
-                    if (document.body.isNotBlank()) {
-                        append(": ")
-                        append(document.body.lineSequence().firstOrNull()?.take(100) ?: document.body.take(100))
-                    }
-                }
-            }
-            .ifEmpty { listOf("No source notes were available for this rollup.") }
-
-        val themes = keywords.take(3).mapNotNull { keyword ->
-            val matchingDocs = documents.filter { document ->
-                val lowered = "${document.title} ${document.body}".lowercase()
-                lowered.contains(keyword)
-            }
-            if (matchingDocs.isEmpty()) {
-                null
-            } else {
-                ThemeBucket(
-                    label = keyword.replaceFirstChar { it.uppercase() },
-                    summary = "Notes repeatedly mention $keyword across ${matchingDocs.size} item(s).",
-                    noteIds = matchingDocs.flatMap(SemanticDocument::noteIds).distinct(),
-                )
-            }
-        }.ifEmpty {
-            listOf(
-                ThemeBucket(
-                    label = "General",
-                    summary = "This rollup combines ${documents.size} item(s) from the selected period.",
-                    noteIds = documents.flatMap(SemanticDocument::noteIds).distinct(),
-                ),
+                title = defaultTitle(granularity, periodStartEpochMs, periodEndEpochMs),
+                overview = overview,
+                highlights = emptyList(),
+                themes = emptyList(),
             )
         }
 
-        val rangeLabel = formatDateRange(periodStartEpochMs, periodEndEpochMs)
-        val overview = buildString {
-            append("Aggregated ${documents.size} item(s) for $rangeLabel.")
-            if (keywords.isNotEmpty()) {
-                append(" Recurring threads: ")
-                append(keywords.take(4).joinToString(", "))
-                append('.')
-            }
+        override fun close() {
+            session.close()
         }
-
-        return AggregateInsight(
-            modelLabel = "Built-in local summarizer",
-            title = defaultTitle(granularity, periodStartEpochMs, periodEndEpochMs),
-            overview = overview,
-            highlights = highlights,
-            themes = themes,
-        )
     }
 
     private fun buildPrompt(
@@ -146,68 +119,85 @@ class LocalSummaryEngine(
         periodEndEpochMs: Long,
     ): String {
         val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.systemDefault())
-        val sourceBlock = documents.joinToString("\n\n") { document ->
-            buildString {
-                append("source_id=")
-                append(document.sourceId)
-                append('\n')
-                append("created_at=")
-                append(formatter.format(Instant.ofEpochMilli(document.createdAtEpochMs)))
-                append('\n')
-                append("note_ids=")
-                append(document.noteIds.joinToString(","))
-                append('\n')
-                append("title=")
-                append(document.title)
-                append('\n')
-                append("body=")
-                append(document.body.take(700))
-            }
+        val sourceBlock = buildSourceBlock(documents, granularity, formatter)
+
+        return when (granularity) {
+            RollupGranularity.DAILY -> """
+                Summarize these notes for ${formatDateRange(periodStartEpochMs, periodEndEpochMs)}.
+                Write 3 to 5 bullet points. Start each bullet with "- ".
+                Each bullet covers one distinct event, mood, decision, or observation.
+                Rewrite in your own words. Skip filler, greetings, and repetition.
+
+                $sourceBlock
+            """.trimIndent()
+            else -> """
+                Summarize these notes for ${formatDateRange(periodStartEpochMs, periodEndEpochMs)}.
+                Write 4 to 6 bullet points. Start each bullet with "- ".
+                Each bullet covers one key theme, pattern, or event from the period.
+                Rewrite in your own words. Skip filler, greetings, and repetition.
+
+                $sourceBlock
+            """.trimIndent()
         }
-
-        return """
-            Summarize the following ${granularity.name.lowercase()} journal material from ${formatDateRange(periodStartEpochMs, periodEndEpochMs)}.
-            Return strict JSON in this exact shape:
-            {
-              "title": "short title",
-              "overview": "short paragraph",
-              "highlights": ["bullet", "bullet"],
-              "themes": [
-                {
-                  "label": "theme name",
-                  "summary": "why the notes belong together",
-                  "noteIds": [1, 2]
-                }
-              ]
-            }
-
-            Rules:
-            - Keep the overview concise and grounded in the source text.
-            - Use 2 to 5 highlights.
-            - Use 1 to 4 themes.
-            - noteIds must only contain ids from the provided note_ids values.
-            - Do not wrap the JSON in markdown fences.
-
-            Sources:
-            $sourceBlock
-        """.trimIndent()
     }
 
-    private fun topKeywords(text: String): List<String> {
-        val stopWords = setOf(
-            "about", "after", "again", "along", "also", "been", "being", "between", "could",
-            "from", "have", "into", "just", "note", "notes", "that", "them", "then", "there",
-            "they", "this", "today", "with", "were", "will", "would", "your", "journal",
-        )
-        return text.lowercase()
-            .split(Regex("[^a-z0-9]+"))
-            .filter { token -> token.length >= 4 && token !in stopWords }
-            .groupingBy { it }
-            .eachCount()
-            .entries
-            .sortedByDescending { it.value }
-            .map { it.key }
-            .distinct()
+    private fun buildSourceBlock(
+        documents: List<SemanticDocument>,
+        granularity: RollupGranularity,
+        formatter: DateTimeFormatter,
+    ): String {
+        val totalBodyBudget = totalBodyBudget(granularity)
+        val perDocumentBudget = (totalBodyBudget / documents.size.coerceAtLeast(1))
+            .coerceIn(MIN_SOURCE_BODY_CHARS, MAX_SOURCE_BODY_CHARS)
+        var remainingBudget = totalBodyBudget
+
+        return documents.joinToString("\n\n") { document ->
+            val bodyLimit = minOf(perDocumentBudget, remainingBudget).coerceAtLeast(MIN_SOURCE_BODY_CHARS)
+            val body = sanitizePromptText(document.body, maxChars = bodyLimit)
+            val title = sanitizePromptText(document.title, maxChars = 60)
+            remainingBudget = (remainingBudget - body.length).coerceAtLeast(0)
+            buildString {
+                append('[')
+                append(formatter.format(Instant.ofEpochMilli(document.createdAtEpochMs)))
+                append("] ")
+                append(title.ifBlank { "Untitled" })
+                append('\n')
+                append(body)
+            }
+        }
+    }
+
+    private fun sanitizePromptText(value: String, maxChars: Int = Int.MAX_VALUE): String {
+        return Normalizer.normalize(value, Normalizer.Form.NFKC)
+            .replace("\r\n", "\n")
+            .replace(CONTROL_CHAR_REGEX, " ")
+            .replace(EXCESS_BLANK_LINE_REGEX, "\n\n")
+            .trim()
+            .take(maxChars)
+    }
+
+    private fun sanitizeGeneratedSummary(value: String): String {
+        return Normalizer.normalize(value, Normalizer.Form.NFKC)
+            .replace("\r\n", "\n")
+            .replace(CONTROL_CHAR_REGEX, " ")
+            .replace(EXCESS_BLANK_LINE_REGEX, "\n\n")
+            .trim()
+    }
+
+    private fun totalBodyBudget(granularity: RollupGranularity): Int {
+        // Gemma 4 E2B context window is 2048 tokens (input + output).
+        // With 256 tokens reserved for output and ~20 for special tokens, the input budget
+        // is ~1772 tokens ≈ 5000 chars at 3 chars/token (worst-case mixed content).
+        // 4000-char body budget leaves ~1000 chars for instruction text, titles, and
+        // timestamps, keeping total prompts well within the 5000-char input ceiling.
+        return when (granularity) {
+            // 8 docs × 500 chars = 4000; total prompt ~4700 chars ≈ 1567 input tokens
+            RollupGranularity.DAILY -> 4000
+            // Higher-granularity sources are already-summarized text; same body budget
+            RollupGranularity.WEEKLY -> 4000
+            RollupGranularity.MONTHLY -> 4000
+            RollupGranularity.YEARLY -> 4000
+        }
     }
 
     private fun defaultTitle(
@@ -215,7 +205,7 @@ class LocalSummaryEngine(
         periodStartEpochMs: Long,
         periodEndEpochMs: Long,
     ): String {
-        return "${granularity.name.lowercase().replaceFirstChar { it.uppercase() }} rollup: ${formatDateRange(periodStartEpochMs, periodEndEpochMs)}"
+        return "${granularity.name.lowercase().replaceFirstChar { it.uppercase() }} summary: ${formatDateRange(periodStartEpochMs, periodEndEpochMs)}"
     }
 
     private fun formatDateRange(startEpochMs: Long, endEpochMs: Long): String {
@@ -223,27 +213,13 @@ class LocalSummaryEngine(
         return "${formatter.format(Instant.ofEpochMilli(startEpochMs))} to ${formatter.format(Instant.ofEpochMilli(endEpochMs))}"
     }
 
-    private fun extractJsonObject(raw: String): String {
-        val startIndex = raw.indexOf('{')
-        val endIndex = raw.lastIndexOf('}')
-        if (startIndex == -1 || endIndex <= startIndex) {
-            return raw.trim()
-        }
-        return raw.substring(startIndex, endIndex + 1)
+    companion object {
+        private val CONTROL_CHAR_REGEX = Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]")
+        private val EXCESS_BLANK_LINE_REGEX = Regex("\\n{3,}")
+        private const val MIN_SOURCE_BODY_CHARS = 180
+        private const val MAX_SOURCE_BODY_CHARS = 1500
+        private const val MIN_SUMMARY_TOKENS = 512
+        private const val MAX_SUMMARY_TOKENS = 2048
+        private const val SUMMARY_TOP_K = 8
     }
-
-    @Serializable
-    private data class ModelInsightPayload(
-        val title: String = "",
-        val overview: String,
-        val highlights: List<String>,
-        val themes: List<ModelThemePayload>,
-    )
-
-    @Serializable
-    private data class ModelThemePayload(
-        val label: String,
-        val summary: String,
-        val noteIds: List<Long>,
-    )
 }
