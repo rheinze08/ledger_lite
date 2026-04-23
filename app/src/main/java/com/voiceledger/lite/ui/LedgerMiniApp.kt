@@ -994,7 +994,7 @@ private fun SearchCard(
             onValueChange = onSearchChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Ask across notes and rollups") },
-            singleLine = true,
+            minLines = 3,
         )
         if (state.labels.isNotEmpty()) {
             Text(
