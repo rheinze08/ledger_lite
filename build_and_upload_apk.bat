@@ -3,7 +3,7 @@
 set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
 set "PATH=%JAVA_HOME%\bin;%PATH%"
 
-cd /d C:\Users\Roland\repos\voice_ledger_lite
+cd /d C:\Users\Roland\repos\ledger_lite
 
 echo Stopping Gradle daemons...
 call gradlew.bat --stop
