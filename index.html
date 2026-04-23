@@ -468,23 +468,27 @@
       margin: 0;
     }
 
-    .contact-bar {
-      display: flex;
-      gap: 18px;
-      flex-wrap: wrap;
-      align-items: center;
-      padding: 4px 2px;
+    .feedback-pill {
+      display: inline-flex;
+      width: fit-content;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(244, 251, 248, 0.18);
+      border: 1px solid rgba(244, 251, 248, 0.28);
+      color: #f4fbf8;
+      font-size: 0.92rem;
+      line-height: 1.5;
     }
 
-    .contact-bar a {
-      color: var(--accent);
-      text-decoration: none;
-      font-size: 0.92rem;
+    .feedback-pill a {
+      color: #f4fbf8;
+      text-decoration: underline;
+      text-underline-offset: 2px;
       font-weight: 600;
     }
 
-    .contact-bar a:hover {
-      text-decoration: underline;
+    .feedback-pill a:hover {
+      opacity: 0.9;
     }
 
     @media (max-width: 980px) {
@@ -541,11 +545,6 @@
 </head>
 <body>
   <main class="shell">
-    <div class="contact-bar">
-      <a href="mailto:datawiseguysllc@gmail.com">datawiseguysllc@gmail.com</a>
-      <a href="https://discord.gg/rNmQWVAF5E">Discord</a>
-    </div>
-
     <section class="download-strip">
       <div class="download-strip-copy">
         <div class="download-strip-brand">
@@ -554,6 +553,9 @@
             <h2>Ledger Lite</h2>
             <div class="subheader">
               Developed by <a href="https://rheinze08.github.io/Datawiseguysllc/" target="_blank" rel="noopener noreferrer">DataWiseguys, LLC.</a>
+            </div>
+            <div class="feedback-pill">
+              Have feedback? <a href="mailto:datawiseguysllc@gmail.com">Email us</a> or <a href="https://discord.gg/rNmQWVAF5E">join our Discord</a>!
             </div>
           </div>
         </div>
