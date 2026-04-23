@@ -456,6 +456,25 @@
       margin: 0;
     }
 
+    .contact-bar {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 4px 2px;
+    }
+
+    .contact-bar a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    .contact-bar a:hover {
+      text-decoration: underline;
+    }
+
     @media (max-width: 980px) {
       .download-strip,
       .hero,
@@ -510,6 +529,11 @@
 </head>
 <body>
   <main class="shell">
+    <div class="contact-bar">
+      <a href="mailto:datawiseguysllc@gmail.com">datawiseguysllc@gmail.com</a>
+      <a href="https://discord.gg/rNmQWVAF5E">Discord</a>
+    </div>
+
     <section class="download-strip">
       <div class="download-strip-copy">
         <div class="download-strip-brand">
@@ -647,6 +671,7 @@
               <li><strong>Active</strong> section for the selected note</li>
               <li><strong>Records</strong> list for prior notes</li>
               <li>Fast jump from historical records back into the active view</li>
+              <li>Toggle between <strong>Created</strong> (your notes) and <strong>Generated</strong> (AI summaries)</li>
             </ul>
           </div>
         </article>
@@ -681,12 +706,12 @@
           <div class="screen-body">
             <h3>Ask</h3>
             <p class="fine">
-              Ask runs retrieval over notes and summary documents, then uses the local model to synthesize an answer from the targeted context.
+              Your question goes to the local LLM, which decides whether to answer via semantic search (a relevant subset of documents) or brute-force (all documents). Supply a date range or tags to shrink the document pool it reads.
             </p>
             <ul class="mini-list">
-              <li>Semantic narrowing over your own data</li>
-              <li>Final answer generated from retrieved documents</li>
-              <li>Useful for question answering rather than raw note browsing</li>
+              <li>LLM chooses semantic or brute-force approach per question</li>
+              <li>Date range and tags reduce the brute-force document set</li>
+              <li>Answer synthesized from the retrieved context</li>
             </ul>
           </div>
         </article>
@@ -701,12 +726,13 @@
           <div class="screen-body">
             <h3>Summarize</h3>
             <p class="fine">
-              Summarize is where the app updates checkpoints, generates daily/weekly/monthly/yearly summary documents, and exposes model installation status.
+              Summarize generates daily/weekly/monthly/yearly documents and can run automatically on a configurable daily schedule to keep summaries current.
             </p>
             <ul class="mini-list">
-              <li><strong>Update</strong> for incremental refresh</li>
-              <li><strong>Rebuild</strong> for replay from the configured floor</li>
-              <li>Summary documents grouped by time period</li>
+              <li><strong>Update</strong> — skips already-summarized documents, adds new ones</li>
+              <li><strong>Rebuild</strong> — starts from scratch or from a specified date</li>
+              <li>Set a daily runtime to run summarization automatically</li>
+              <li>Export or import summary data to back up or move to another device</li>
             </ul>
           </div>
         </article>
