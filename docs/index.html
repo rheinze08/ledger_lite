@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice Ledger Lite Download</title>
+  <style>
+    :root {
+      --bg: #f1ebdf;
+      --panel: rgba(255, 250, 241, 0.88);
+      --ink: #12231f;
+      --muted: #536461;
+      --accent: #1d6158;
+      --accent-2: #c96a33;
+      --line: rgba(18, 35, 31, 0.12);
+      --shadow: 0 22px 64px rgba(18, 35, 31, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "Aptos", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(201, 106, 51, 0.16), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(29, 97, 88, 0.16), transparent 35%),
+        linear-gradient(180deg, #f8f2e7 0%, var(--bg) 100%);
+    }
+
+    .shell {
+      width: min(980px, calc(100% - 32px));
+      margin: 40px auto;
+      display: grid;
+      gap: 20px;
+    }
+
+    .hero,
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--panel);
+      backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 32px;
+      display: grid;
+      gap: 22px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      width: fit-content;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(29, 97, 88, 0.1);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.5rem, 7vw, 4.7rem);
+      line-height: 0.96;
+      letter-spacing: -0.04em;
+      max-width: 10ch;
+    }
+
+    .lede {
+      margin: 0;
+      max-width: 58ch;
+      font-size: 1.05rem;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      padding: 0 20px;
+      border-radius: 16px;
+      text-decoration: none;
+      font-weight: 700;
+      border: 1px solid transparent;
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+    }
+
+    .button-primary {
+      background: var(--accent);
+      color: #f8faf8;
+      box-shadow: 0 14px 28px rgba(29, 97, 88, 0.22);
+    }
+
+    .button-secondary {
+      background: rgba(255, 255, 255, 0.55);
+      color: var(--ink);
+      border-color: var(--line);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+    }
+
+    .panel {
+      padding: 22px;
+    }
+
+    .panel h2,
+    .panel h3 {
+      margin-top: 0;
+    }
+
+    .meta-list,
+    .steps {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .status {
+      display: grid;
+      gap: 8px;
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid var(--line);
+    }
+
+    .status strong {
+      font-size: 1rem;
+    }
+
+    .status span {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .code {
+      display: inline-flex;
+      padding: 4px 8px;
+      border-radius: 10px;
+      background: rgba(18, 35, 31, 0.06);
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: 0.9rem;
+    }
+
+    .fine {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 720px) {
+      .hero {
+        padding: 24px;
+      }
+
+      .panel {
+        padding: 18px;
+      }
+
+      h1 {
+        max-width: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <span class="eyebrow">Voice Ledger Lite</span>
+      <h1>Download the Android test build.</h1>
+      <p class="lede">
+        This Android build stores notes locally, builds daily to yearly rollups on-device,
+        and keeps a phone-local semantic index for search without requiring a PC server.
+      </p>
+      <div class="actions">
+        <a class="button button-primary" id="apk-link" href="https://github.com/rheinze08/voice_ledger_lite/releases/latest/download/voice-ledger-lite-debug.apk">Download APK</a>
+        <a class="button button-secondary" href="https://github.com/rheinze08/voice_ledger_lite/archive/refs/heads/main.zip">Download Source ZIP</a>
+        <a class="button button-secondary" href="https://github.com/rheinze08/voice_ledger_lite/actions/workflows/android-apk.yml">Build New APK</a>
+      </div>
+      <div class="status" id="release-status">
+        <strong>Checking latest release...</strong>
+        <span>The page looks for the newest GitHub release asset named <span class="code">voice-ledger-lite-debug.apk</span>.</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <h2>What You Get</h2>
+        <ul class="meta-list">
+          <li>Local Room database for note storage</li>
+          <li>Title, body, created timestamp, and updated timestamp on every note</li>
+          <li>Incremental daily, weekly, monthly, and yearly rollups</li>
+          <li>Local semantic search over notes and rollups</li>
+          <li>Optional on-device model imports for summary and embeddings</li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <h2>Install Notes</h2>
+        <ul class="meta-list">
+          <li>This download is an Android <span class="code">.apk</span>, not a Windows <span class="code">.exe</span>.</li>
+          <li>It is currently a debug build for quick testing, not a Play Store signed release.</li>
+          <li>On Android, you may need to allow installs from your browser or file manager.</li>
+          <li>The app can run fully locally on the phone. Imported model files are optional.</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <h3>If The APK Link Fails</h3>
+        <ol class="steps">
+          <li>Open the <a href="https://github.com/rheinze08/voice_ledger_lite/actions/workflows/android-apk.yml">Build Android APK</a> workflow.</li>
+          <li>Click <strong>Run workflow</strong>.</li>
+          <li>Leave <span class="code">publish_release</span> enabled if you want the release and direct download link updated automatically.</li>
+          <li>After the run finishes, refresh this page and the APK button will point to the latest uploaded asset.</li>
+        </ol>
+      </article>
+
+      <article class="panel">
+        <h3>Direct Links</h3>
+        <ul class="meta-list">
+          <li><a href="https://github.com/rheinze08/voice_ledger_lite/releases/latest">Latest release page</a></li>
+          <li><a href="https://github.com/rheinze08/voice_ledger_lite/actions">GitHub Actions runs</a></li>
+          <li><a href="https://github.com/rheinze08/voice_ledger_lite">Repository</a></li>
+        </ul>
+      </article>
+    </section>
+
+    <p class="fine">
+      The page fetches release metadata from the public GitHub API. If there is no published release yet,
+      the direct download button still points to the expected latest-release asset URL.
+    </p>
+  </main>
+
+  <script>
+    const repo = "rheinze08/voice_ledger_lite";
+    const fallbackAssetUrl = `https://github.com/${repo}/releases/latest/download/voice-ledger-lite-debug.apk`;
+    const apkLink = document.getElementById("apk-link");
+    const status = document.getElementById("release-status");
+
+    fetch(`https://api.github.com/repos/${repo}/releases/latest`)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`GitHub API returned ${response.status}`);
+        }
+        return response.json();
+      })
+      .then((release) => {
+        const apkAsset = (release.assets || []).find((asset) => asset.name === "voice-ledger-lite-debug.apk");
+        if (apkAsset) {
+          apkLink.href = apkAsset.browser_download_url;
+        } else {
+          apkLink.href = fallbackAssetUrl;
+        }
+
+        const published = release.published_at
+          ? new Date(release.published_at).toLocaleString()
+          : "unknown publish time";
+        status.innerHTML = `
+          <strong>Latest release: ${release.name || release.tag_name}</strong>
+          <span>Published ${published}. ${apkAsset ? "APK asset is live." : "Release exists, but the APK asset is not attached yet."}</span>
+        `;
+      })
+      .catch((error) => {
+        apkLink.href = fallbackAssetUrl;
+        status.innerHTML = `
+          <strong>Latest release lookup unavailable</strong>
+          <span>${error.message}. If you have not published a release yet, run the build workflow once and refresh the page.</span>
+        `;
+      });
+  </script>
+</body>
+</html>
