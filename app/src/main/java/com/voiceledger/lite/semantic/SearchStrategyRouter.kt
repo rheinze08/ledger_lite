@@ -10,33 +10,47 @@ class SearchStrategyRouter(private val context: Context) {
 
     suspend fun classify(query: String, settings: LocalAiSettings): SearchStrategy = withContext(Dispatchers.IO) {
         val model = LocalModelLocator.resolveSummaryModel(context, settings.normalized())
-            ?: return@withContext SearchStrategy.SEMANTIC
+            ?: return@withContext SearchStrategy.BROAD_SCAN
 
         val prompt = buildPrompt(query)
         val response = runCatching {
             liteRtLmEngine.openSession(model = model, settings = routerSettings(settings)).use { session ->
                 session.generate(prompt)
             }
-        }.getOrNull()?.trim() ?: return@withContext SearchStrategy.SEMANTIC
+        }.getOrNull()?.trim() ?: return@withContext SearchStrategy.BROAD_SCAN
 
-        // Look at the first letter-class character in the response.
-        // Prompt instructs the model to reply Y for broad scan, X for semantic.
-        // Default to SEMANTIC if unclear so the faster path is always the fallback.
+        // Broad scan is the superset that can always produce a correct answer,
+        // so anything short of a confident "S" falls back to it.
         val firstLetter = response.firstOrNull { it.isLetter() }?.uppercaseChar()
-        if (firstLetter == 'Y') SearchStrategy.BROAD_SCAN else SearchStrategy.SEMANTIC
+        if (firstLetter == 'S') SearchStrategy.SEMANTIC else SearchStrategy.BROAD_SCAN
     }
 
     private fun buildPrompt(query: String): String {
         val sanitized = query.trim().take(300)
         return """
-            Classify the search query below. Reply with a single letter only: X or Y.
+            Decide how a local notes search should answer the query below. The notes are a personal journal.
 
-            Reply X if the answer is likely contained in the most semantically similar notes (topical lookup, e.g. "do I have a dog?", "what did I say about my sister?").
-            Reply Y if answering requires exhaustively scanning all notes regardless of topic, such as finding a maximum, minimum, total, count, or any event that could appear anywhere in time (e.g. "what is my heaviest bench press ever?", "how many times have I been sick?", "what was my lowest weight?").
+            Two strategies are available:
+              S = Topical lookup. A handful of the most topically similar notes will fully contain the answer.
+              B = Broad scan. The answer could live in notes on unrelated topics, so many or all notes must be checked.
+
+            Pick S only when the answer is about one clear topic and reading a few of those notes is enough.
+            Pick B when the query asks for an extreme (max, min, heaviest, lowest, best, worst), an aggregate (count, total, sum, average, how many times), anything qualified by "ever", "any time", "always", "never", or any event that could be mentioned inside notes about unrelated topics.
+
+            If you are unsure, answer B.
+
+            Examples:
+              "do I have a dog?" -> S
+              "what did I say about my sister?" -> S
+              "did I book the dentist?" -> S
+              "what is my heaviest bench press ever?" -> B
+              "how many times have I been sick this year?" -> B
+              "what was my lowest weight?" -> B
+              "have I ever mentioned Paris?" -> B
 
             Query: $sanitized
 
-            Answer (X or Y):
+            Answer (single letter, S or B):
         """.trimIndent()
     }
 
