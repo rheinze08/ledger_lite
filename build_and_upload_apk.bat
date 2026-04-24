@@ -8,6 +8,7 @@ set "RCLONE_EXE="
 set "RCLONE_REMOTE=datawiseguysllc-gdrive:"
 set "RELEASE_APK_DIR=app\build\outputs\apk\release"
 set "UPLOAD_APK=%RELEASE_APK_DIR%\ledger-lite-release.apk"
+set "CURRENT_BRANCH="
 
 cd /d C:\Users\Roland\repos\ledger_lite
 
@@ -40,10 +41,18 @@ del /q "%UPLOAD_APK%" 2>nul
 copy /y "%SOURCE_APK%" "%UPLOAD_APK%" >nul || exit /b 1
 
 echo Pushing to Git...
+for /f "delims=" %%I in ('git branch --show-current') do (
+    if not defined CURRENT_BRANCH set "CURRENT_BRANCH=%%I"
+)
+if not defined CURRENT_BRANCH (
+    echo Could not determine the current git branch.
+    exit /b 1
+)
+
 git add .
 git reset HEAD -- .gradle-user-home >nul 2>nul
 git diff --cached --quiet || git commit -m "Auto-build: updated APK"
-git push origin main || exit /b 1
+git push -u origin "%CURRENT_BRANCH%" || exit /b 1
 
 for /f "delims=" %%I in ('where rclone 2^>nul') do (
     if not defined RCLONE_EXE set "RCLONE_EXE=%%I"
