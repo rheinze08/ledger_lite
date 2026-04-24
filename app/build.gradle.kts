@@ -33,6 +33,14 @@ val releaseStorePassword = signingValue("RELEASE_STORE_PASSWORD")
 val releaseKeyAlias = signingValue("RELEASE_KEY_ALIAS")
 val releaseKeyPassword = signingValue("RELEASE_KEY_PASSWORD")
 val releaseKeystoreFile = releaseStoreFilePath?.takeIf { it.isNotBlank() }?.let(rootProject::file)
+val releaseVersionCode =
+    providers.gradleProperty("RELEASE_VERSION_CODE").orNull?.toIntOrNull()
+        ?: providers.environmentVariable("RELEASE_VERSION_CODE").orNull?.toIntOrNull()
+        ?: 1
+val releaseVersionName =
+    providers.gradleProperty("RELEASE_VERSION_NAME").orNull
+        ?: providers.environmentVariable("RELEASE_VERSION_NAME").orNull
+        ?: "0.1.0"
 val hasReleaseSigning =
     releaseKeystoreFile?.exists() == true &&
         !releaseStorePassword.isNullOrBlank() &&
@@ -47,8 +55,8 @@ android {
         applicationId = "com.voiceledger.lite"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = releaseVersionCode
+        versionName = releaseVersionName
         buildConfigField(
             "String",
             "SUMMARY_MODEL_URL",
@@ -145,3 +153,7 @@ if (!hasReleaseSigning) {
         "Release signing is not configured. Set RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD via Gradle properties, environment variables, or a local keystore.properties file to build a signed release APK.",
     )
 }
+
+logger.lifecycle(
+    "Release version configured as versionCode=$releaseVersionCode, versionName=$releaseVersionName.",
+)

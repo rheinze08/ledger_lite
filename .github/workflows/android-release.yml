@@ -1,0 +1,126 @@
+name: Build And Publish Android Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version_name:
+        description: "App version name, for example 0.2.0"
+        required: true
+        type: string
+      release_version_code:
+        description: "Monotonic integer version code, for example 2"
+        required: true
+        type: string
+      create_github_release:
+        description: "Create or update a GitHub release with the signed AAB"
+        required: true
+        type: boolean
+        default: true
+      github_tag:
+        description: "Git tag for the GitHub release"
+        required: false
+        type: string
+        default: ""
+      publish_to_play:
+        description: "Submit the release bundle to Google Play"
+        required: true
+        type: boolean
+        default: false
+      play_track:
+        description: "Google Play track: internal, alpha, beta, production"
+        required: false
+        type: string
+        default: "internal"
+      release_status:
+        description: "Google Play release status: completed, draft, inProgress, halted"
+        required: false
+        type: string
+        default: "completed"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION_NAME: ${{ inputs.release_version_name }}
+      RELEASE_VERSION_CODE: ${{ inputs.release_version_code }}
+      RELEASE_STORE_FILE: ${{ github.workspace }}/signing/upload-keystore.jks
+      RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+      RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+      RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses >/dev/null
+
+      - name: Install Android platform packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      - name: Decode Android upload keystore
+        shell: bash
+        run: |
+          test -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}"
+          mkdir -p signing
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > signing/upload-keystore.jks
+
+      - name: Build signed Android App Bundle
+        run: ./gradlew :app:bundleRelease --no-daemon
+
+      - name: Rename bundle for distribution
+        shell: bash
+        run: |
+          cp app/build/outputs/bundle/release/app-release.aab \
+            "app/build/outputs/bundle/release/ledger-lite-${RELEASE_VERSION_NAME}-${RELEASE_VERSION_CODE}.aab"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ledger-lite-release-aab
+          path: app/build/outputs/bundle/release/ledger-lite-${{ inputs.release_version_name }}-${{ inputs.release_version_code }}.aab
+          retention-days: 30
+
+      - name: Create or update GitHub release
+        if: inputs.create_github_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ inputs.github_tag != '' && inputs.github_tag || format('v{0}', inputs.release_version_name) }}
+          AAB_PATH: app/build/outputs/bundle/release/ledger-lite-${{ inputs.release_version_name }}-${{ inputs.release_version_code }}.aab
+        shell: bash
+        run: |
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" "$AAB_PATH#$(basename "$AAB_PATH")" --clobber
+          else
+            gh release create "$TAG_NAME" "$AAB_PATH#$(basename "$AAB_PATH")" \
+              --title "Ledger Lite $TAG_NAME" \
+              --notes "Signed Android App Bundle for Ledger Lite ${RELEASE_VERSION_NAME} (${RELEASE_VERSION_CODE})."
+          fi
+
+      - name: Publish bundle to Google Play
+        if: inputs.publish_to_play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.voiceledger.lite
+          releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.play_track }}
+          status: ${{ inputs.release_status }}
+          changesNotSentForReview: true
