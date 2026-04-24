@@ -29,13 +29,14 @@ if exist "%RELEASE_APK_DIR%\app-release.apk" (
 if not defined SOURCE_APK if exist "%RELEASE_APK_DIR%\app-release-unsigned.apk" (
     set "SOURCE_APK=%RELEASE_APK_DIR%\app-release-unsigned.apk"
     echo Signed release APK was not produced.
-    echo Uploading unsigned release APK instead.
+    echo Release signing fallback did not produce an installable APK.
 )
 if not defined SOURCE_APK (
     echo Release APK was not produced.
     exit /b 1
 )
 
+del /q "%UPLOAD_APK%" 2>nul
 copy /y "%SOURCE_APK%" "%UPLOAD_APK%" >nul || exit /b 1
 
 echo Pushing to Git...

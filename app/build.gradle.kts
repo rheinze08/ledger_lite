@@ -88,6 +88,8 @@ android {
             isMinifyEnabled = false
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -150,7 +152,7 @@ dependencies {
 
 if (!hasReleaseSigning) {
     logger.lifecycle(
-        "Release signing is not configured. Set RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD via Gradle properties, environment variables, or a local keystore.properties file to build a signed release APK.",
+        "Release signing is not configured. Release builds will fall back to the local debug keystore for sideload installs. Set RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD to use your real release key instead.",
     )
 }
 
