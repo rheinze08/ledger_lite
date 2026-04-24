@@ -3,7 +3,9 @@ setlocal
 
 set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
 set "PATH=%JAVA_HOME%\bin;%PATH%"
-set "RCLONE_EXE=C:\Users\Roland\Downloads\rclone\rclone.exe"
+set "RCLONE_FALLBACK_EXE=C:\Users\Roland\Downloads\rclone\rclone.exe"
+set "RCLONE_EXE="
+set "RCLONE_REMOTE=datawiseguysllc-gdrive:"
 set "RELEASE_APK_DIR=app\build\outputs\apk\release"
 set "UPLOAD_APK=%RELEASE_APK_DIR%\ledger-lite-release.apk"
 
@@ -42,12 +44,29 @@ git reset HEAD -- .gradle-user-home >nul 2>nul
 git diff --cached --quiet || git commit -m "Auto-build: updated APK"
 git push origin main || exit /b 1
 
-if not exist "%RCLONE_EXE%" (
-    echo rclone was not found at %RCLONE_EXE%.
+for /f "delims=" %%I in ('where rclone 2^>nul') do (
+    if not defined RCLONE_EXE set "RCLONE_EXE=%%I"
+)
+
+if not defined RCLONE_EXE if exist "%RCLONE_FALLBACK_EXE%" (
+    set "RCLONE_EXE=%RCLONE_FALLBACK_EXE%"
+)
+
+if not defined RCLONE_EXE (
+    echo rclone was not found on PATH or at %RCLONE_FALLBACK_EXE%.
+    echo Install rclone, add it to PATH, or update RCLONE_FALLBACK_EXE in this script.
+    exit /b 1
+)
+
+echo Using rclone at %RCLONE_EXE%.
+"%RCLONE_EXE%" listremotes | findstr /b /c:"%RCLONE_REMOTE%" >nul
+if errorlevel 1 (
+    echo rclone remote %RCLONE_REMOTE% was not found.
+    echo Run "%RCLONE_EXE%" config and confirm the remote exists before uploading.
     exit /b 1
 )
 
 echo Uploading %UPLOAD_APK% to Google Drive root as ledger-lite-release.apk...
-"%RCLONE_EXE%" copyto "%UPLOAD_APK%" "datawiseguysllc-gdrive:/ledger-lite-release.apk" || exit /b 1
+"%RCLONE_EXE%" copyto "%UPLOAD_APK%" "%RCLONE_REMOTE%/ledger-lite-release.apk" || exit /b 1
 
 echo Done!
