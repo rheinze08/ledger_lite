@@ -42,14 +42,17 @@ Common commands:
 - Windows debug build: `.\gradlew.bat :app:assembleDebug`
 - macOS/Linux debug build: `./gradlew :app:assembleDebug`
 - Install to a connected Android device: `.\gradlew.bat :app:installDebug`
+- Windows release bundle: `set RELEASE_VERSION_CODE=2 && set RELEASE_VERSION_NAME=0.2.0 && .\build_release_bundle.bat`
 
 The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
 Optional local release signing:
 
 - Create a repo-local `keystore.properties` file or set environment variables with `RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and `RELEASE_KEY_PASSWORD`.
+- Start from [`keystore.properties.example`](/keystore.properties.example) for local setup.
 - `RELEASE_STORE_FILE` can be an absolute path or a path relative to the repo root.
 - Without those values, `:app:assembleRelease` still builds, but the APK is not signed for device installation.
+- Release builds also accept `RELEASE_VERSION_CODE` and `RELEASE_VERSION_NAME`, which is the path used by CI for store updates.
 
 Important settings:
 
@@ -70,21 +73,30 @@ Important settings:
 
 No PC or server connection is required for the app's note storage, rollups, or semantic search.
 
-## GitHub Distribution
+## Distribution Paths
 
 The repo includes:
 
 - `Build Android APK` at [`.github/workflows/android-apk.yml`](/.github/workflows/android-apk.yml)
+- `Build And Publish Android Release` at [`.github/workflows/android-release.yml`](/.github/workflows/android-release.yml)
 - `Deploy Download Page` at [`.github/workflows/pages.yml`](/.github/workflows/pages.yml)
 - a static Pages site in [`docs/index.html`](/docs/index.html)
 
-The intended path is:
+The intended side-load path is:
 
 1. Run the `Build Android APK` workflow from GitHub.
 2. Let it create or update a release with `ledger-lite-debug.apk` plus the model assets expected by the app.
 3. Open the GitHub Pages download page and install the APK from there.
 
 This is currently a debug APK for fast testing. A signed release build would need a keystore plus GitHub Actions secrets.
+
+The intended Play Store path is:
+
+1. Configure the repository secrets described in [`docs/play-store-release.md`](/docs/play-store-release.md).
+2. Run `Build And Publish Android Release`.
+3. Provide a new `release_version_code` and `release_version_name`.
+4. Start with `publish_to_play = false` to validate the signed AAB.
+5. When ready, rerun with `publish_to_play = true` and target the `internal` track first.
 
 ## Intended First Test
 
