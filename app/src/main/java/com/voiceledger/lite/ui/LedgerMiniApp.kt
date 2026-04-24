@@ -189,6 +189,7 @@ fun LedgerMiniApp(
                 onClearLabelEditor = viewModel::clearLabelEditor,
                 onSaveLabel = viewModel::saveLabel,
                 onDeleteLabel = viewModel::deleteEditingLabel,
+                onClean = viewModel::cleanComposeBody,
                 onSave = viewModel::saveDraft,
                 onClear = viewModel::clearComposer,
             )
@@ -715,6 +716,7 @@ private fun ComposeScreen(
     onClearLabelEditor: () -> Unit,
     onSaveLabel: () -> Unit,
     onDeleteLabel: () -> Unit,
+    onClean: () -> Unit,
     onSave: () -> Unit,
     onClear: () -> Unit,
 ) {
@@ -767,6 +769,31 @@ private fun ComposeScreen(
             label = { Text("Body") },
             minLines = 10,
         )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            OutlinedButton(
+                onClick = onClean,
+                enabled = state.composeBody.isNotBlank() && !state.isCleaningBody,
+            ) {
+                Text("Clean up")
+            }
+            if (state.isCleaningBody) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                Text(
+                    "Cleaning…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (state.composeBody.isNotBlank()) {
+                Text(
+                    "Fix speech-to-text errors with the local model",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         if (!isEditingGeneratedSummary) {
             Text("Tags", style = MaterialTheme.typography.titleMedium)
             if (state.labels.isEmpty()) {

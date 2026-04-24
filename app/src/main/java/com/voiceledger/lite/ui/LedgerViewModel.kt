@@ -19,6 +19,7 @@ import com.voiceledger.lite.semantic.AggregationScheduler
 import com.voiceledger.lite.semantic.BroadScanParams
 import com.voiceledger.lite.semantic.GeneratedAnswer
 import com.voiceledger.lite.semantic.LocalAggregationCoordinator
+import com.voiceledger.lite.semantic.LocalCleanEngine
 import com.voiceledger.lite.semantic.LocalModelProvisioner
 import com.voiceledger.lite.semantic.LocalModelProvisioningStatus
 import com.voiceledger.lite.semantic.ModelProvisioningScheduler
@@ -96,6 +97,7 @@ data class LedgerUiState(
     val isRefreshingInsights: Boolean = false,
     val activeInsightRefreshMode: InsightRefreshMode? = null,
     val isSearching: Boolean = false,
+    val isCleaningBody: Boolean = false,
     val infoMessage: String? = null,
     val errorMessage: String? = null,
     val progressLog: List<String> = emptyList(),
@@ -113,6 +115,7 @@ class LedgerViewModel(
     private val modelProvisioner = LocalModelProvisioner(appContext, settingsStore)
     private val aggregationRunLogger = AggregationRunLogger(appContext)
     private val searchStrategyRouter = SearchStrategyRouter(appContext)
+    private val cleanEngine = LocalCleanEngine(appContext)
     private var showProvisioningSuccessMessage = false
     private var hasObservedAggregationWork = false
     private var lastHandledAggregationTerminalId: String? = null
@@ -354,6 +357,27 @@ class LedgerViewModel(
                 composeDate = defaultComposeDate(),
                 composeSelectedLabelIds = emptySet(),
             )
+        }
+    }
+
+    fun cleanComposeBody() {
+        val body = _uiState.value.composeBody
+        if (body.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Nothing to clean — write something first.") }
+            return
+        }
+        _uiState.update { it.copy(isCleaningBody = true) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val cleaned = runCatching {
+                cleanEngine.clean(body, _uiState.value.settings)
+            }.getOrNull()
+            _uiState.update {
+                if (cleaned != null) {
+                    it.copy(composeBody = cleaned, isCleaningBody = false)
+                } else {
+                    it.copy(isCleaningBody = false, errorMessage = "Clean failed — model may not be ready.")
+                }
+            }
         }
     }
 
