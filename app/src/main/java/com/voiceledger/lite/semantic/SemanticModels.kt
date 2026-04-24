@@ -71,6 +71,7 @@ data class SemanticSearchResponse(
     val hits: List<SemanticSearchHit>,
     val answer: GeneratedAnswer? = null,
     val answerNotice: String? = null,
+    val suggestBroadScan: Boolean = false,
 )
 
 data class SemanticDocument(

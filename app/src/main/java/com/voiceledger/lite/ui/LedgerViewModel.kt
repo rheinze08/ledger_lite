@@ -764,6 +764,21 @@ class LedgerViewModel(
     private suspend fun executeSemanticSearch(query: String, labelIds: Set<Long>) {
         try {
             val response = coordinator.search(query, labelIds)
+            if (response.suggestBroadScan) {
+                _uiState.update {
+                    it.copy(
+                        isSearching = false,
+                        searchRoute = emptyList(),
+                        searchResults = emptyList(),
+                        searchAnswer = null,
+                        searchAnswerNotice = null,
+                        pendingBroadScan = true,
+                        broadScanDateFrom = "",
+                        broadScanDateTo = "",
+                    )
+                }
+                return
+            }
             val modelStatus = modelProvisioner.currentStatus()
             _uiState.update {
                 it.copy(

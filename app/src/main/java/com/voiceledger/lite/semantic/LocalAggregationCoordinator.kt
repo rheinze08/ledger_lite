@@ -34,6 +34,7 @@ class LocalAggregationCoordinator(
     private val summaryEngine = LocalSummaryEngine(context)
     private val embeddingEngine = LocalEmbeddingEngine(context)
     private val answerEngine = LocalAnswerEngine(context)
+    private val evidenceGate = StageEvidenceGate(context)
     private val zoneId = ZoneId.systemDefault()
 
     suspend fun runAggregation(
@@ -267,133 +268,178 @@ class LocalAggregationCoordinator(
         val rollups = repository.allRollups()
         val rollupsById = rollups.associateBy(RollupSnapshot::id)
 
-        val topYears = selectStage(
-            rollups = rollups.filter { it.granularity == RollupGranularity.YEARLY },
-            rollupEntriesById = rollupEntriesById,
-            queryVector = queryVector,
-            labelScope = noteLabelScope,
-            limit = 2,
-        )
-        val topMonths = selectStage(
-            rollups = rollups.filter { it.granularity == RollupGranularity.MONTHLY && withinParents(it, topYears) },
-            rollupEntriesById = rollupEntriesById,
-            queryVector = queryVector,
-            labelScope = noteLabelScope,
-            limit = 3,
-        )
-        val topWeeks = selectStage(
-            rollups = rollups.filter { it.granularity == RollupGranularity.WEEKLY && withinParents(it, topMonths) },
-            rollupEntriesById = rollupEntriesById,
-            queryVector = queryVector,
-            labelScope = noteLabelScope,
-            limit = 4,
-        )
-        val topDays = selectStage(
-            rollups = rollups.filter { it.granularity == RollupGranularity.DAILY && withinParents(it, topWeeks) },
-            rollupEntriesById = rollupEntriesById,
-            queryVector = queryVector,
-            labelScope = noteLabelScope,
-            limit = 5,
-        )
+        val yearlyRollups = rollups.filter { it.granularity == RollupGranularity.YEARLY }
+        val monthlyRollups = rollups.filter { it.granularity == RollupGranularity.MONTHLY }
+        val weeklyRollups = rollups.filter { it.granularity == RollupGranularity.WEEKLY }
+        val dailyRollups = rollups.filter { it.granularity == RollupGranularity.DAILY }
 
-        val candidateNoteIds = buildCandidateNoteIds(
-            topDays = topDays,
-            topWeeks = topWeeks,
-            topMonths = topMonths,
-            topYears = topYears,
-            labelScope = noteLabelScope,
-            allNoteIds = noteEntries.mapNotNull { it.entry.noteId }.toSet(),
-        )
-        val noteMap = repository.notesWithLabelsByIds(candidateNoteIds)
-
-        val noteHits = noteEntries
-            .filter { decoded ->
-                val noteId = decoded.entry.noteId ?: return@filter false
-                candidateNoteIds.contains(noteId)
-            }
-            .map { decoded ->
-                val noteId = decoded.entry.noteId ?: error("Note id missing.")
-                val note = noteMap[noteId]
-                SemanticSearchHit(
-                    entryId = decoded.entry.entryId,
-                    kind = "note",
-                    title = decoded.entry.title,
-                    preview = note?.note?.body?.take(220) ?: decoded.entry.body,
-                    score = cosineSimilarity(queryVector, decoded.embedding),
-                    noteId = noteId,
-                    rollupId = null,
-                    granularity = null,
-                    labels = note?.labels?.map(LabelEntity::name).orEmpty(),
-                )
-            }
-            .sortedByDescending(SemanticSearchHit::score)
-            .take(settings.searchResultLimit)
-
-        val route = listOfNotNull(
-            topYears.firstOrNull(),
-            topMonths.firstOrNull(),
-            topWeeks.firstOrNull(),
-            topDays.firstOrNull(),
-        ).map { scored ->
-            SearchRouteStep(
-                granularity = scored.rollup.granularity,
-                title = scored.rollup.title,
-                score = scored.score,
+        // Adaptive pyramid: after each stage, ask the LLM whether the top picks actually mention
+        // the query's subject. If they do, keep the parent filter for the next stage. If they
+        // don't, drop the filter so the next stage re-scores its whole set — this rescues topical
+        // misses where a parent summary happened not to mention the subject.
+        val gateEvaluator = if (rollups.isEmpty()) null else evidenceGate.open(settings)
+        try {
+            val topYears = selectStage(
+                rollups = yearlyRollups,
+                rollupEntriesById = rollupEntriesById,
+                queryVector = queryVector,
+                labelScope = noteLabelScope,
+                limit = 2,
             )
-        }
+            val monthParents = if (stageIsSufficient(gateEvaluator, normalized, topYears, RollupGranularity.YEARLY)) {
+                topYears
+            } else {
+                emptyList()
+            }
+            val topMonths = selectStage(
+                rollups = monthlyRollups.filter { withinParents(it, monthParents) },
+                rollupEntriesById = rollupEntriesById,
+                queryVector = queryVector,
+                labelScope = noteLabelScope,
+                limit = 3,
+            )
+            val weekParents = if (stageIsSufficient(gateEvaluator, normalized, topMonths, RollupGranularity.MONTHLY)) {
+                topMonths
+            } else {
+                emptyList()
+            }
+            val topWeeks = selectStage(
+                rollups = weeklyRollups.filter { withinParents(it, weekParents) },
+                rollupEntriesById = rollupEntriesById,
+                queryVector = queryVector,
+                labelScope = noteLabelScope,
+                limit = 4,
+            )
+            val dayParents = if (stageIsSufficient(gateEvaluator, normalized, topWeeks, RollupGranularity.WEEKLY)) {
+                topWeeks
+            } else {
+                emptyList()
+            }
+            val topDays = selectStage(
+                rollups = dailyRollups.filter { withinParents(it, dayParents) },
+                rollupEntriesById = rollupEntriesById,
+                queryVector = queryVector,
+                labelScope = noteLabelScope,
+                limit = 5,
+            )
 
-        val remainingResultSlots = (settings.searchResultLimit - noteHits.size).coerceAtLeast(0)
-        val rollupHits = (topDays + topWeeks + topMonths + topYears)
-            .distinctBy { it.rollup.id }
-            .map { scored ->
-                SemanticSearchHit(
-                    entryId = "rollup:${scored.rollup.id}",
-                    kind = "rollup",
-                    title = scored.rollup.title,
-                    preview = scored.rollup.overview,
-                    score = scored.score,
-                    noteId = scored.rollup.noteIds.firstOrNull(),
-                    rollupId = scored.rollup.id,
-                    granularity = scored.rollup.granularity,
+            // At the finest stage, if evidence is still weak the pyramid effectively scanned the
+            // whole daily layer and still didn't surface the subject. Ask the user to narrow by
+            // date so the broad-scan path can look at raw notes directly.
+            val finestPicks = firstNonEmptyStage(topDays, topWeeks, topMonths, topYears)
+            val finestGranularity = finestStageGranularity(topDays, topWeeks, topMonths, topYears)
+            if (gateEvaluator != null &&
+                finestGranularity != null &&
+                !stageIsSufficient(gateEvaluator, normalized, finestPicks, finestGranularity)
+            ) {
+                return@withContext SemanticSearchResponse(
+                    route = emptyList(),
+                    hits = emptyList(),
+                    suggestBroadScan = true,
                 )
             }
-            .filter { hit ->
-                noteHits.none { existing -> existing.entryId == hit.entryId }
-            }
-            .take(remainingResultSlots)
 
-        val hits = if (noteHits.size >= settings.searchResultLimit) {
-            noteHits
-        } else {
-            noteHits + rollupHits
-        }
-        val answerDocuments = buildAnswerDocuments(
-            hits = hits,
-            notesById = noteMap,
-            rollupsById = rollupsById,
-        )
-        val answer = runCatching {
-            answerEngine.answer(normalized, answerDocuments, settings)
-        }.getOrNull()
-        val notices = buildList {
-            if (!modelStatus.embedding.isReady) {
-                add("Embedding model is not installed yet. Ask is using hashed fallback vectors for retrieval.")
+            val candidateNoteIds = buildCandidateNoteIds(
+                topDays = topDays,
+                topWeeks = topWeeks,
+                topMonths = topMonths,
+                topYears = topYears,
+                labelScope = noteLabelScope,
+                allNoteIds = noteEntries.mapNotNull { it.entry.noteId }.toSet(),
+            )
+            val noteMap = repository.notesWithLabelsByIds(candidateNoteIds)
+
+            val noteHits = noteEntries
+                .filter { decoded ->
+                    val noteId = decoded.entry.noteId ?: return@filter false
+                    candidateNoteIds.contains(noteId)
+                }
+                .map { decoded ->
+                    val noteId = decoded.entry.noteId ?: error("Note id missing.")
+                    val note = noteMap[noteId]
+                    SemanticSearchHit(
+                        entryId = decoded.entry.entryId,
+                        kind = "note",
+                        title = decoded.entry.title,
+                        preview = note?.note?.body?.take(220) ?: decoded.entry.body,
+                        score = cosineSimilarity(queryVector, decoded.embedding),
+                        noteId = noteId,
+                        rollupId = null,
+                        granularity = null,
+                        labels = note?.labels?.map(LabelEntity::name).orEmpty(),
+                    )
+                }
+                .sortedByDescending(SemanticSearchHit::score)
+                .take(settings.searchResultLimit)
+
+            val route = listOfNotNull(
+                topYears.firstOrNull(),
+                topMonths.firstOrNull(),
+                topWeeks.firstOrNull(),
+                topDays.firstOrNull(),
+            ).map { scored ->
+                SearchRouteStep(
+                    granularity = scored.rollup.granularity,
+                    title = scored.rollup.title,
+                    score = scored.score,
+                )
             }
-            if (hits.isNotEmpty() && answer == null) {
-                if (!modelStatus.summary.isReady) {
-                    add("Summary model is not installed yet. Ask is showing retrieved notes and summaries only.")
-                } else {
-                    add("The local answer model did not return an answer for these results.")
+
+            val remainingResultSlots = (settings.searchResultLimit - noteHits.size).coerceAtLeast(0)
+            val rollupHits = (topDays + topWeeks + topMonths + topYears)
+                .distinctBy { it.rollup.id }
+                .map { scored ->
+                    SemanticSearchHit(
+                        entryId = "rollup:${scored.rollup.id}",
+                        kind = "rollup",
+                        title = scored.rollup.title,
+                        preview = scored.rollup.overview,
+                        score = scored.score,
+                        noteId = scored.rollup.noteIds.firstOrNull(),
+                        rollupId = scored.rollup.id,
+                        granularity = scored.rollup.granularity,
+                    )
+                }
+                .filter { hit ->
+                    noteHits.none { existing -> existing.entryId == hit.entryId }
+                }
+                .take(remainingResultSlots)
+
+            val hits = if (noteHits.size >= settings.searchResultLimit) {
+                noteHits
+            } else {
+                noteHits + rollupHits
+            }
+            val answerDocuments = buildAnswerDocuments(
+                hits = hits,
+                notesById = noteMap,
+                rollupsById = rollupsById,
+            )
+            val answer = runCatching {
+                answerEngine.answer(normalized, answerDocuments, settings)
+            }.getOrNull()
+            val notices = buildList {
+                if (!modelStatus.embedding.isReady) {
+                    add("Embedding model is not installed yet. Ask is using hashed fallback vectors for retrieval.")
+                }
+                if (hits.isNotEmpty() && answer == null) {
+                    if (!modelStatus.summary.isReady) {
+                        add("Summary model is not installed yet. Ask is showing retrieved notes and summaries only.")
+                    } else {
+                        add("The local answer model did not return an answer for these results.")
+                    }
                 }
             }
-        }
 
-        return@withContext SemanticSearchResponse(
-            route = route,
-            hits = hits,
-            answer = answer,
-            answerNotice = notices.takeIf(List<String>::isNotEmpty)?.joinToString(" "),
-        )
+            return@withContext SemanticSearchResponse(
+                route = route,
+                hits = hits,
+                answer = answer,
+                answerNotice = notices.takeIf(List<String>::isNotEmpty)?.joinToString(" "),
+            )
+        } finally {
+            gateEvaluator?.close()
+        }
     }
 
     suspend fun searchBroadScan(
@@ -668,6 +714,60 @@ class LocalAggregationCoordinator(
             .distinctBy(SemanticDocument::sourceId)
             .take(6)
             .toList()
+    }
+
+    private fun stageIsSufficient(
+        evaluator: StageEvidenceGate.Evaluator?,
+        query: String,
+        picks: List<ScoredRollup>,
+        granularity: RollupGranularity,
+    ): Boolean {
+        if (evaluator == null) {
+            // Without the summary model we can't gate; preserve the pre-existing pyramid
+            // by keeping the parent filter (same as original behavior).
+            return true
+        }
+        return evaluator.isSufficient(query, picks.toCandidates(granularity))
+    }
+
+    private fun List<ScoredRollup>.toCandidates(granularity: RollupGranularity): List<StageEvidenceGate.Candidate> {
+        return map { scored ->
+            StageEvidenceGate.Candidate(
+                label = "${granularity.displayLabel()} ${formatBucketLabel(scored.rollup.periodStartEpochMs, granularity)}",
+                title = scored.rollup.title,
+                overview = scored.rollup.overview,
+            )
+        }
+    }
+
+    private fun firstNonEmptyStage(
+        topDays: List<ScoredRollup>,
+        topWeeks: List<ScoredRollup>,
+        topMonths: List<ScoredRollup>,
+        topYears: List<ScoredRollup>,
+    ): List<ScoredRollup> {
+        return when {
+            topDays.isNotEmpty() -> topDays
+            topWeeks.isNotEmpty() -> topWeeks
+            topMonths.isNotEmpty() -> topMonths
+            topYears.isNotEmpty() -> topYears
+            else -> emptyList()
+        }
+    }
+
+    private fun finestStageGranularity(
+        topDays: List<ScoredRollup>,
+        topWeeks: List<ScoredRollup>,
+        topMonths: List<ScoredRollup>,
+        topYears: List<ScoredRollup>,
+    ): RollupGranularity? {
+        return when {
+            topDays.isNotEmpty() -> RollupGranularity.DAILY
+            topWeeks.isNotEmpty() -> RollupGranularity.WEEKLY
+            topMonths.isNotEmpty() -> RollupGranularity.MONTHLY
+            topYears.isNotEmpty() -> RollupGranularity.YEARLY
+            else -> null
+        }
     }
 
     private fun selectStage(
