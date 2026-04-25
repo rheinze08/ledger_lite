@@ -98,6 +98,7 @@ data class LedgerUiState(
     val activeInsightRefreshMode: InsightRefreshMode? = null,
     val isSearching: Boolean = false,
     val isCleaningBody: Boolean = false,
+    val cleanedBodyDraft: String? = null,
     val infoMessage: String? = null,
     val errorMessage: String? = null,
     val progressLog: List<String> = emptyList(),
@@ -297,7 +298,7 @@ class LedgerViewModel(
     }
 
     fun updateComposeBody(value: String) {
-        _uiState.update { it.copy(composeBody = value) }
+        _uiState.update { it.copy(composeBody = value, cleanedBodyDraft = null) }
     }
 
     fun updateComposeDate(value: String) {
@@ -326,6 +327,7 @@ class LedgerViewModel(
                 composeDate = formatComposeDate(note.note.createdAtEpochMs),
                 composeSelectedLabelIds = note.labels.map(LabelEntity::id).toSet(),
                 selectedNoteId = note.note.id,
+                cleanedBodyDraft = null,
             )
         }
     }
@@ -343,6 +345,7 @@ class LedgerViewModel(
                 selectedRollupId = rollup.id,
                 notesDocumentLayer = NotesDocumentLayer.GENERATED,
                 generatedGranularity = rollup.granularity,
+                cleanedBodyDraft = null,
             )
         }
     }
@@ -356,6 +359,7 @@ class LedgerViewModel(
                 composeBody = "",
                 composeDate = defaultComposeDate(),
                 composeSelectedLabelIds = emptySet(),
+                cleanedBodyDraft = null,
             )
         }
     }
@@ -366,19 +370,39 @@ class LedgerViewModel(
             _uiState.update { it.copy(errorMessage = "Nothing to clean — write something first.") }
             return
         }
-        _uiState.update { it.copy(isCleaningBody = true) }
+        _uiState.update { it.copy(isCleaningBody = true, cleanedBodyDraft = null) }
         viewModelScope.launch(Dispatchers.IO) {
             val cleaned = runCatching {
                 cleanEngine.clean(body, _uiState.value.settings)
             }.getOrNull()
-            _uiState.update {
-                if (cleaned != null) {
-                    it.copy(composeBody = cleaned, isCleaningBody = false)
-                } else {
-                    it.copy(isCleaningBody = false, errorMessage = "Clean failed — model may not be ready.")
+            _uiState.update { state ->
+                when {
+                    cleaned == null -> state.copy(
+                        isCleaningBody = false,
+                        errorMessage = "Clean failed — model may not be ready.",
+                    )
+                    cleaned == state.composeBody -> state.copy(
+                        isCleaningBody = false,
+                        infoMessage = "No changes suggested — text already looks clean.",
+                    )
+                    else -> state.copy(
+                        isCleaningBody = false,
+                        cleanedBodyDraft = cleaned,
+                    )
                 }
             }
         }
+    }
+
+    fun acceptCleanedBody() {
+        _uiState.update { state ->
+            val draft = state.cleanedBodyDraft ?: return@update state
+            state.copy(composeBody = draft, cleanedBodyDraft = null)
+        }
+    }
+
+    fun rejectCleanedBody() {
+        _uiState.update { it.copy(cleanedBodyDraft = null) }
     }
 
     fun saveDraft() {
