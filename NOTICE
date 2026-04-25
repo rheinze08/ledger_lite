@@ -1,0 +1,151 @@
+Ledger Lite
+Copyright (c) 2026 Roland Rheinze
+
+This product is free software, released under the MIT License (see LICENSE).
+It includes the following third-party software components.
+
+─────────────────────────────────────────────────────────────────────────────
+ANDROID APPLICATION DEPENDENCIES
+─────────────────────────────────────────────────────────────────────────────
+
+Kotlin Standard Library and Compiler
+  Copyright (c) 2010–2026 JetBrains s.r.o. and Kotlin contributors
+  Licensed under the Apache License, Version 2.0
+  https://github.com/JetBrains/kotlin
+
+KotlinX Coroutines
+  Copyright (c) 2016–2026 JetBrains s.r.o.
+  Licensed under the Apache License, Version 2.0
+  https://github.com/Kotlin/kotlinx.coroutines
+
+KotlinX Serialization
+  Copyright (c) 2017–2026 JetBrains s.r.o.
+  Licensed under the Apache License, Version 2.0
+  https://github.com/Kotlin/kotlinx.serialization
+
+AndroidX Core (core-ktx)
+  Copyright (c) The Android Open Source Project
+  Licensed under the Apache License, Version 2.0
+  https://developer.android.com/jetpack/androidx/releases/core
+
+AndroidX Activity (activity-compose)
+  Copyright (c) The Android Open Source Project
+  Licensed under the Apache License, Version 2.0
+  https://developer.android.com/jetpack/androidx/releases/activity
+
+Jetpack Compose (compose-bom, ui, material3, material-icons-extended)
+  Copyright (c) The Android Open Source Project
+  Licensed under the Apache License, Version 2.0
+  https://developer.android.com/jetpack/compose
+
+AndroidX Lifecycle (lifecycle-runtime-ktx, lifecycle-runtime-compose,
+  lifecycle-viewmodel-compose)
+  Copyright (c) The Android Open Source Project
+  Licensed under the Apache License, Version 2.0
+  https://developer.android.com/jetpack/androidx/releases/lifecycle
+
+AndroidX WorkManager (work-runtime-ktx, work-multiprocess)
+  Copyright (c) The Android Open Source Project
+  Licensed under the Apache License, Version 2.0
+  https://developer.android.com/jetpack/androidx/releases/work
+
+AndroidX Room (room-runtime, room-ktx, room-compiler)
+  Copyright (c) The Android Open Source Project
+  Licensed under the Apache License, Version 2.0
+  https://developer.android.com/jetpack/androidx/releases/room
+
+LiteRT-LM for Android (com.google.ai.edge.litertlm)
+  Copyright (c) Google LLC
+  Licensed under the Apache License, Version 2.0
+  https://github.com/google-ai-edge/LiteRT
+
+MediaPipe Tasks Text (com.google.mediapipe:tasks-text)
+  Copyright (c) Google LLC
+  Licensed under the Apache License, Version 2.0
+  https://developers.google.com/mediapipe
+
+─────────────────────────────────────────────────────────────────────────────
+ON-DEVICE AI MODELS
+─────────────────────────────────────────────────────────────────────────────
+
+Gemma 4 E2B LiteRT-LM (gemma-4-E2B-it.litertlm)
+  Copyright (c) Google LLC and Google DeepMind
+  Licensed under the Gemma Terms of Use
+  https://ai.google.dev/gemma/terms
+
+  This model is free to use for permitted purposes under Google's Gemma Terms
+  of Use, including personal, research, and commercial applications subject to
+  those terms. It is downloaded at first launch into app-private storage and
+  is not redistributed with this software.
+
+TensorFlow Text Embedder (text_embedder.tflite)
+  Copyright (c) The TensorFlow Authors
+  Licensed under the Apache License, Version 2.0
+  https://www.tensorflow.org/lite/inference_with_metadata/task_library/text_embedder
+
+  This model file is downloaded at first launch into app-private storage and
+  is not redistributed with this software.
+
+─────────────────────────────────────────────────────────────────────────────
+RAG MODULE DEPENDENCIES (rag/)
+─────────────────────────────────────────────────────────────────────────────
+
+Streamlit
+  Copyright (c) Streamlit Inc.
+  Licensed under the Apache License, Version 2.0
+  https://github.com/streamlit/streamlit
+
+Anthropic Python SDK
+  Copyright (c) Anthropic, PBC
+  Licensed under the MIT License
+  https://github.com/anthropics/anthropic-sdk-python
+
+NumPy
+  Copyright (c) 2005–2026 NumPy Developers
+  Licensed under the BSD 3-Clause License
+  https://numpy.org
+
+─────────────────────────────────────────────────────────────────────────────
+APACHE LICENSE, VERSION 2.0 (full text)
+─────────────────────────────────────────────────────────────────────────────
+
+The Apache License, Version 2.0 (the "License") applies to those components
+identified above as "Licensed under the Apache License, Version 2.0".
+
+You may obtain a copy of the License at:
+  https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+─────────────────────────────────────────────────────────────────────────────
+BSD 3-CLAUSE LICENSE (NumPy)
+─────────────────────────────────────────────────────────────────────────────
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

@@ -56,3 +56,18 @@ unchanged.
 - `rag_pipeline.py` — embedding, retrieval, and answer generation
 - `sample_docs.json` — eight example daily docs to try the app with
 - `requirements.txt` — Python dependencies
+
+## License
+
+This module is part of the Ledger Lite project and is released under the
+**MIT License** — see [`../LICENSE`](../LICENSE) for the full text.
+
+Third-party dependencies:
+
+| Package | License |
+|---|---|
+| Streamlit | Apache 2.0 |
+| anthropic (Python SDK) | MIT |
+| NumPy | BSD 3-Clause |
+
+See [`../NOTICE`](../NOTICE) for full attribution details.
