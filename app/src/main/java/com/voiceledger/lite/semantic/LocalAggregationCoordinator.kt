@@ -627,6 +627,19 @@ class LocalAggregationCoordinator(
                 return@forEach
             }
 
+            // Skip creating or updating a higher-level rollup when there aren't enough source
+            // rollups to produce a meaningful synthesis. A single-source rollup is a paraphrase,
+            // not a summary. The bucket is deferred: the checkpoint still advances past it so we
+            // don't re-run it on every pass, but the period will be re-evaluated naturally when
+            // new source data arrives and marks it dirty again. Any previously generated rollup
+            // for this bucket is left in place — the threshold is for creation, not retroactive
+            // deletion. DAILY is always created because it is the foundation layer.
+            if (granularity != RollupGranularity.DAILY && bucketDocuments.size < MIN_SOURCES_PER_ROLLUP) {
+                onProgress("${granularity.displayLabel()} ${formatBucketLabel(bucketStart, granularity)}: only ${bucketDocuments.size} source(s), deferring until ≥$MIN_SOURCES_PER_ROLLUP")
+                lastProcessedEnd = min(bucketEnd, runReferenceEpochMs)
+                return@forEach
+            }
+
             val bucketLabel = "${granularity.displayLabel()} ${formatBucketLabel(bucketStart, granularity)}"
             onProgress("$bucketLabel: ${bucketDocuments.size} source item(s), ${docsForSummary.size} sent to the LLM")
 
@@ -862,6 +875,12 @@ class LocalAggregationCoordinator(
         // the stage below it. With fewer, every query would return the same single rollup, so we
         // skip the stage entirely and let the next finer level score unfiltered.
         private const val MIN_ROLLUPS_PER_STAGE = 2
+
+        // A higher-level rollup (weekly/monthly/yearly) requires at least this many source
+        // rollups from the level below before it is worth creating. A summary built from a single
+        // source is a paraphrase with no synthesis value. Mirrors MIN_ROLLUPS_PER_STAGE so the
+        // creation and search sides share the same threshold intuition.
+        private const val MIN_SOURCES_PER_ROLLUP = 2
     }
 }
 

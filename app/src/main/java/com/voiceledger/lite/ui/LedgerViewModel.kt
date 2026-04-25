@@ -469,7 +469,7 @@ class LedgerViewModel(
                             composeDate = defaultComposeDate(),
                             composeSelectedLabelIds = emptySet(),
                             infoMessage = if (current.editingNoteId == null) {
-                                "Note saved locally. Aggregation is now dirty from this note onward."
+                                "Note saved. Summaries will be refreshed in the background."
                             } else {
                                 "Note updated. Dependent rollups will be rebuilt locally."
                             },
