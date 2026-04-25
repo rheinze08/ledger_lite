@@ -190,6 +190,8 @@ fun LedgerMiniApp(
                 onSaveLabel = viewModel::saveLabel,
                 onDeleteLabel = viewModel::deleteEditingLabel,
                 onClean = viewModel::cleanComposeBody,
+                onAcceptClean = viewModel::acceptCleanedBody,
+                onRejectClean = viewModel::rejectCleanedBody,
                 onSave = viewModel::saveDraft,
                 onClear = viewModel::clearComposer,
             )
@@ -717,10 +719,13 @@ private fun ComposeScreen(
     onSaveLabel: () -> Unit,
     onDeleteLabel: () -> Unit,
     onClean: () -> Unit,
+    onAcceptClean: () -> Unit,
+    onRejectClean: () -> Unit,
     onSave: () -> Unit,
     onClear: () -> Unit,
 ) {
     val isEditingGeneratedSummary = state.editingRollupId != null
+    val hasCleanedDraft = state.cleanedBodyDraft != null
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -775,7 +780,7 @@ private fun ComposeScreen(
         ) {
             OutlinedButton(
                 onClick = onClean,
-                enabled = state.composeBody.isNotBlank() && !state.isCleaningBody,
+                enabled = state.composeBody.isNotBlank() && !state.isCleaningBody && !hasCleanedDraft,
             ) {
                 Text("Clean up")
             }
@@ -786,12 +791,56 @@ private fun ComposeScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            } else if (hasCleanedDraft) {
+                Text(
+                    "Review the suggested edit below",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             } else if (state.composeBody.isNotBlank()) {
                 Text(
                     "Fix speech-to-text errors with the local model",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+        state.cleanedBodyDraft?.let { draft ->
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        "Suggested clean-up",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "Accept to replace the body above, or reject to keep your original text.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                    ) {
+                        Text(
+                            text = draft,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = onAcceptClean) {
+                            Text("Accept")
+                        }
+                        OutlinedButton(onClick = onRejectClean) {
+                            Text("Reject")
+                        }
+                    }
+                }
             }
         }
         if (!isEditingGeneratedSummary) {
