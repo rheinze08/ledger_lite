@@ -279,38 +279,44 @@ class LocalAggregationCoordinator(
         // misses where a parent summary happened not to mention the subject.
         val gateEvaluator = if (rollups.isEmpty()) null else evidenceGate.open(settings)
         try {
-            val topYears = selectStage(
-                rollups = yearlyRollups,
-                rollupEntriesById = rollupEntriesById,
-                queryVector = queryVector,
-                labelScope = noteLabelScope,
-                limit = 2,
-            )
-            val monthParents = if (stageIsSufficient(gateEvaluator, normalized, topYears, RollupGranularity.YEARLY)) {
+            val topYears = if (yearlyRollups.size >= MIN_ROLLUPS_PER_STAGE) {
+                selectStage(
+                    rollups = yearlyRollups,
+                    rollupEntriesById = rollupEntriesById,
+                    queryVector = queryVector,
+                    labelScope = noteLabelScope,
+                    limit = 2,
+                )
+            } else emptyList()
+            val monthParents = if (topYears.isNotEmpty() && stageIsSufficient(gateEvaluator, normalized, topYears, RollupGranularity.YEARLY)) {
                 topYears
             } else {
                 emptyList()
             }
-            val topMonths = selectStage(
-                rollups = monthlyRollups.filter { withinParents(it, monthParents) },
-                rollupEntriesById = rollupEntriesById,
-                queryVector = queryVector,
-                labelScope = noteLabelScope,
-                limit = 3,
-            )
-            val weekParents = if (stageIsSufficient(gateEvaluator, normalized, topMonths, RollupGranularity.MONTHLY)) {
+            val topMonths = if (monthlyRollups.size >= MIN_ROLLUPS_PER_STAGE) {
+                selectStage(
+                    rollups = monthlyRollups.filter { withinParents(it, monthParents) },
+                    rollupEntriesById = rollupEntriesById,
+                    queryVector = queryVector,
+                    labelScope = noteLabelScope,
+                    limit = 3,
+                )
+            } else emptyList()
+            val weekParents = if (topMonths.isNotEmpty() && stageIsSufficient(gateEvaluator, normalized, topMonths, RollupGranularity.MONTHLY)) {
                 topMonths
             } else {
                 emptyList()
             }
-            val topWeeks = selectStage(
-                rollups = weeklyRollups.filter { withinParents(it, weekParents) },
-                rollupEntriesById = rollupEntriesById,
-                queryVector = queryVector,
-                labelScope = noteLabelScope,
-                limit = 4,
-            )
-            val dayParents = if (stageIsSufficient(gateEvaluator, normalized, topWeeks, RollupGranularity.WEEKLY)) {
+            val topWeeks = if (weeklyRollups.size >= MIN_ROLLUPS_PER_STAGE) {
+                selectStage(
+                    rollups = weeklyRollups.filter { withinParents(it, weekParents) },
+                    rollupEntriesById = rollupEntriesById,
+                    queryVector = queryVector,
+                    labelScope = noteLabelScope,
+                    limit = 4,
+                )
+            } else emptyList()
+            val dayParents = if (topWeeks.isNotEmpty() && stageIsSufficient(gateEvaluator, normalized, topWeeks, RollupGranularity.WEEKLY)) {
                 topWeeks
             } else {
                 emptyList()
@@ -849,6 +855,13 @@ class LocalAggregationCoordinator(
             sum += left[index] * right[index]
         }
         return sum
+    }
+
+    companion object {
+        // A rollup stage needs at least this many entries to offer any discriminating value over
+        // the stage below it. With fewer, every query would return the same single rollup, so we
+        // skip the stage entirely and let the next finer level score unfiltered.
+        private const val MIN_ROLLUPS_PER_STAGE = 2
     }
 }
 
