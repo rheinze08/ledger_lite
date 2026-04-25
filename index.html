@@ -500,6 +500,84 @@
       opacity: 0.9;
     }
 
+    .terms-section {
+      display: grid;
+      gap: 8px;
+    }
+
+    .terms-block {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.38);
+    }
+
+    .terms-block summary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 18px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.94rem;
+      color: var(--ink);
+      user-select: none;
+      gap: 12px;
+    }
+
+    .terms-block summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .terms-block summary::after {
+      content: "+";
+      flex: 0 0 auto;
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    .terms-block[open] summary::after {
+      content: "−";
+    }
+
+    .terms-body {
+      padding: 2px 18px 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .terms-footer {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding-top: 4px;
+    }
+
+    .terms-footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .terms-footer-links a {
+      font-size: 0.88rem;
+      color: var(--muted);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .terms-footer-links a:hover {
+      color: var(--accent);
+    }
+
+    .copyright {
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
     @media (max-width: 980px) {
       .download-strip,
       .hero,
@@ -798,6 +876,56 @@
             AI inference remain entirely on your phone.
           </p>
         </div>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="section-title">
+        <span class="eyebrow">Legal</span>
+        <h3>Terms &amp; Policies</h3>
+        <p class="fine">
+          Full terms are in
+          <a href="https://github.com/rheinze08/ledger_lite/blob/main/TERMS_OF_SERVICE.md" target="_blank" rel="noopener noreferrer">TERMS_OF_SERVICE.md</a>.
+          Key points are summarized below.
+        </p>
+      </div>
+
+      <div class="terms-section">
+        <details class="terms-block">
+          <summary>Terms of Use</summary>
+          <div class="terms-body">
+            <p class="fine">By downloading or using Ledger Lite you agree to these terms. The App is provided free of charge under the MIT License — you may use, modify, and distribute it under those terms with no royalties or restrictions beyond attribution.</p>
+            <p class="fine">The two on-device AI models downloaded at first launch — Gemma 4 E2B and the TensorFlow Text Embedder — are governed by their own licenses (Google Gemma Terms of Use and Apache 2.0 respectively). You are responsible for complying with those terms.</p>
+            <p class="fine">The App is provided "as is" without warranty of any kind. These terms may be updated at any time; continued use constitutes acceptance.</p>
+          </div>
+        </details>
+
+        <details class="terms-block">
+          <summary>Privacy Notice</summary>
+          <div class="terms-body">
+            <p class="fine"><strong>In the App:</strong> Ledger Lite is local-first. No note content, labels, summaries, or search queries are transmitted to any server operated by the developer. No in-app telemetry or analytics are collected.</p>
+            <p class="fine"><strong>On this website:</strong> This site uses Google Analytics (GA4) to collect anonymous usage statistics (page views, device type, approximate location). <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google's Privacy Policy</a> applies to that data.</p>
+            <p class="fine"><strong>Model downloads:</strong> AI models are fetched from Google's servers at first launch. Google's applicable privacy practices govern that transfer.</p>
+          </div>
+        </details>
+
+        <details class="terms-block">
+          <summary>AI Output Disclaimer</summary>
+          <div class="terms-body">
+            <p class="fine">Ledger Lite uses on-device AI models to generate summaries and answer questions about your notes. These models can produce inaccurate, incomplete, or misleading outputs ("hallucinations").</p>
+            <p class="fine"><strong>Do not rely on AI-generated content for medical, legal, financial, or safety-critical decisions.</strong> All outputs should be reviewed before being acted upon. The developer makes no warranty regarding the accuracy of AI-generated results.</p>
+          </div>
+        </details>
+      </div>
+
+      <div class="terms-footer">
+        <span class="copyright">&copy; 2026 DataWiseguys, LLC. Released under the MIT License.</span>
+        <nav class="terms-footer-links" aria-label="Legal links">
+          <a href="https://github.com/rheinze08/ledger_lite/blob/main/TERMS_OF_SERVICE.md" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+          <a href="https://github.com/rheinze08/ledger_lite/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
+          <a href="https://github.com/rheinze08/ledger_lite/blob/main/NOTICE" target="_blank" rel="noopener noreferrer">Notices</a>
+          <a href="https://github.com/rheinze08/ledger_lite/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">Security</a>
+        </nav>
       </div>
     </footer>
   </main>

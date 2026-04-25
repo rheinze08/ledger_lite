@@ -21,6 +21,7 @@ The Android app is distributed at no charge and will remain free.
 - **License**: MIT — permissive, no royalties, no restrictions on personal or commercial use
 - **Source code**: available in full in this repository
 - **Third-party attributions**: see [`NOTICE`](/NOTICE) for all library and model licenses
+- **Terms of Service**: see [`TERMS_OF_SERVICE.md`](/TERMS_OF_SERVICE.md) for usage terms, privacy notice, and AI disclaimer
 - Contributor guidance: see [`CONTRIBUTING.md`](/CONTRIBUTING.md)
 - Security reporting: see [`SECURITY.md`](/SECURITY.md)
 - Community expectations: see [`CODE_OF_CONDUCT.md`](/CODE_OF_CONDUCT.md)
@@ -35,6 +36,19 @@ The app bundles no proprietary runtime code. All Android library dependencies us
 Apache License 2.0 or MIT License. The two on-device AI models (Gemma 4 E2B and the
 TensorFlow text embedder) are downloaded at first launch under their respective free-use
 terms (Gemma Terms of Use and Apache 2.0) and are not redistributed with the app package.
+
+## Disclaimer
+
+AI-generated summaries and question answers are produced by on-device language models and
+may be inaccurate, incomplete, or misleading. Do not rely on them for medical, legal,
+financial, or safety-critical decisions. All AI outputs should be reviewed before being
+acted upon.
+
+The software is provided "as is" without warranty of any kind. See the [MIT License](/LICENSE)
+for the full warranty disclaimer and limitation of liability.
+
+For usage terms, privacy details, and the full AI disclaimer, see
+[`TERMS_OF_SERVICE.md`](/TERMS_OF_SERVICE.md).
 
 ## Project Layout
 
