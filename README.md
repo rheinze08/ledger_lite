@@ -13,12 +13,28 @@ Ledger Lite is a local-first Android journal for quick note capture, incremental
 - auto-installs the summary and embedding models into app storage from the app release when those assets are published
 - falls back to built-in local heuristics when model files are not present
 
-## Open Source
+## Free and Open Source
 
-- License: MIT
+Ledger Lite is **free software and freeware** — it costs nothing to download, use, or share.
+The Android app is distributed at no charge and will remain free.
+
+- **License**: MIT — permissive, no royalties, no restrictions on personal or commercial use
+- **Source code**: available in full in this repository
+- **Third-party attributions**: see [`NOTICE`](/NOTICE) for all library and model licenses
 - Contributor guidance: see [`CONTRIBUTING.md`](/CONTRIBUTING.md)
 - Security reporting: see [`SECURITY.md`](/SECURITY.md)
 - Community expectations: see [`CODE_OF_CONDUCT.md`](/CODE_OF_CONDUCT.md)
+
+### License summary
+
+The MIT License (see [`LICENSE`](/LICENSE)) applies to all original source code in this
+repository. You are free to use, copy, modify, merge, publish, distribute, sublicense,
+and sell copies of the software.
+
+The app bundles no proprietary runtime code. All Android library dependencies use the
+Apache License 2.0 or MIT License. The two on-device AI models (Gemma 4 E2B and the
+TensorFlow text embedder) are downloaded at first launch under their respective free-use
+terms (Gemma Terms of Use and Apache 2.0) and are not redistributed with the app package.
 
 ## Project Layout
 
