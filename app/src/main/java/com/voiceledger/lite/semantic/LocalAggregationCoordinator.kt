@@ -35,6 +35,7 @@ class LocalAggregationCoordinator(
     private val embeddingEngine = LocalEmbeddingEngine(context)
     private val answerEngine = LocalAnswerEngine(context)
     private val evidenceGate = StageEvidenceGate(context)
+    private val evidenceMapper = BroadScanEvidenceMapper(context)
     private val zoneId = ZoneId.systemDefault()
 
     suspend fun runAggregation(
@@ -486,13 +487,14 @@ class LocalAggregationCoordinator(
         val candidateIds = topScoredEntries.mapNotNull { (decoded, _) -> decoded.entry.noteId }.toSet()
         val noteMap = repository.notesWithLabelsByIds(candidateIds)
 
-        val noteHits = topScoredEntries
-            .filter { (decoded, _) ->
-                val note = noteMap[decoded.entry.noteId]?.note ?: return@filter false
-                val afterFrom = params.fromEpochMs == null || note.createdAtEpochMs >= params.fromEpochMs
-                val beforeTo = params.toEpochMs == null || note.createdAtEpochMs <= params.toEpochMs
-                afterFrom && beforeTo
-            }
+        val dateFilteredEntries = topScoredEntries.filter { (decoded, _) ->
+            val note = noteMap[decoded.entry.noteId]?.note ?: return@filter false
+            val afterFrom = params.fromEpochMs == null || note.createdAtEpochMs >= params.fromEpochMs
+            val beforeTo = params.toEpochMs == null || note.createdAtEpochMs <= params.toEpochMs
+            afterFrom && beforeTo
+        }
+
+        val noteHits = dateFilteredEntries
             .take(settings.searchResultLimit)
             .map { (decoded, score) ->
                 val noteId = decoded.entry.noteId!!
@@ -510,14 +512,32 @@ class LocalAggregationCoordinator(
                 )
             }
 
-        val answerDocuments = buildAnswerDocuments(
-            hits = noteHits,
-            notesById = noteMap,
-            rollupsById = emptyMap(),
-        )
-        val answer = runCatching {
-            answerEngine.answer(normalized, answerDocuments, settings)
-        }.getOrNull()
+        val useMapReduce = dateFilteredEntries.size > settings.searchResultLimit
+        val answer = if (useMapReduce) {
+            val candidates = dateFilteredEntries.mapNotNull { (decoded, _) ->
+                val noteId = decoded.entry.noteId ?: return@mapNotNull null
+                val note = noteMap[noteId]?.note ?: return@mapNotNull null
+                SemanticDocument(
+                    sourceId = "note:$noteId",
+                    title = note.title,
+                    body = note.body,
+                    noteIds = listOf(noteId),
+                    createdAtEpochMs = note.createdAtEpochMs,
+                )
+            }
+            val cards = runCatching {
+                evidenceMapper.extract(normalized, candidates, settings)
+            }.getOrNull().orEmpty()
+            if (cards.isNotEmpty()) {
+                runCatching { answerEngine.answerFromEvidence(normalized, cards, settings) }.getOrNull()
+            } else {
+                val answerDocuments = buildAnswerDocuments(noteHits, noteMap, emptyMap())
+                runCatching { answerEngine.answer(normalized, answerDocuments, settings) }.getOrNull()
+            }
+        } else {
+            val answerDocuments = buildAnswerDocuments(noteHits, noteMap, emptyMap())
+            runCatching { answerEngine.answer(normalized, answerDocuments, settings) }.getOrNull()
+        }
 
         val notices = buildList {
             if (!modelStatus.embedding.isReady) {

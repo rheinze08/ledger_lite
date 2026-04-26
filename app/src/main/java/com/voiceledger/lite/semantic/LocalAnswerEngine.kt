@@ -38,6 +38,34 @@ class LocalAnswerEngine(private val context: Context) {
         )
     }
 
+    suspend fun answerFromEvidence(
+        question: String,
+        cards: List<EvidenceCard>,
+        settings: LocalAiSettings,
+    ): GeneratedAnswer? {
+        if (cards.isEmpty()) {
+            return null
+        }
+
+        val normalized = settings.normalized()
+        val model = LocalModelLocator.resolveSummaryModel(context, normalized) ?: return null
+        val prompt = buildEvidencePrompt(question.trim(), cards)
+        val response = runCatching {
+            liteRtLmEngine.openSession(model = model, settings = normalized).use { session ->
+                session.generate(prompt)
+            }
+        }.getOrNull()?.trim().orEmpty()
+        if (response.isBlank()) {
+            return null
+        }
+
+        return GeneratedAnswer(
+            text = response,
+            modelLabel = model.label,
+            sourceCount = cards.size,
+        )
+    }
+
     private fun buildPrompt(question: String, documents: List<SemanticDocument>): String {
         val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.systemDefault())
         val sourceBlock = documents.joinToString("\n\n") { document ->
@@ -60,6 +88,36 @@ class LocalAnswerEngine(private val context: Context) {
             ${sanitizeText(question, 400)}
 
             $sourceBlock
+        """.trimIndent()
+    }
+
+    private fun buildEvidencePrompt(question: String, cards: List<EvidenceCard>): String {
+        val formatter = DateTimeFormatter.ISO_LOCAL_DATE.withZone(ZoneId.systemDefault())
+        val evidenceBlock = cards.joinToString("\n") { card ->
+            buildString {
+                append("- [")
+                append(formatter.format(Instant.ofEpochMilli(card.createdAtEpochMs)))
+                append("] (relevance ").append(card.relevance).append(") ")
+                append(sanitizeText(card.fact, 220))
+                if (card.quote.isNotBlank()) {
+                    append(" — \"")
+                    append(sanitizeText(card.quote, 140))
+                    append('"')
+                }
+            }
+        }
+
+        return """
+            Answer the question using only the evidence items below. Each item is a fact extracted
+            from one note, with its date and a relevance score from 1 (passing mention) to 3 (direct).
+            Prefer higher-relevance items. If items disagree, surface the disagreement briefly. If the
+            evidence does not actually answer the question, say so directly. Keep the answer concise.
+
+            Question:
+            ${sanitizeText(question, 400)}
+
+            Evidence:
+            $evidenceBlock
         """.trimIndent()
     }
 
