@@ -134,7 +134,33 @@ The top-ranked notes and rollups are passed to `LocalAnswerEngine.answer()`, whi
 
 ### Step 2b — Broad scan
 
-For aggregate or far-ranging queries, `LocalAggregationCoordinator.searchBroadScan()` scores every note embedding against the query without any hierarchical filtering. It oversamples by 4× the result limit (default 32 documents) to get good candidates before applying an optional date-range filter that the user can supply via the UI confirmation dialog. The final answer is generated the same way as semantic search.
+For aggregate or far-ranging queries, `LocalAggregationCoordinator.searchBroadScan()` scores every note embedding against the query without any hierarchical filtering. It oversamples by 4× the result limit (up to 32 candidates) to get good candidates before applying an optional date-range filter that the user can supply via the UI confirmation dialog.
+
+#### Map-reduce evidence extraction (large ledgers)
+
+When the candidate set exceeds `searchResultLimit`, the broad-scan path switches from a single-shot answer call to a **map-reduce pipeline** driven by `BroadScanEvidenceMapper`:
+
+1. **Map** — candidates are processed in batches of 4. For each note the on-device model emits a structured **evidence card** containing a relevance score (0–3), a compressed FACT (up to 220 characters), and a supporting QUOTE (up to 120 characters). Relevance-0 cards are dropped immediately.
+
+2. **Deduplicate** — surviving cards are de-duplicated by FACT fingerprint: pairs with a Jaccard similarity ≥ 0.7 on stop-word-free tokens are collapsed to the higher-relevance entry, so a repetitive journal (e.g. the same standing meeting recapped daily) does not crowd the synthesis context with copies of the same fact.
+
+3. **Rank and cap** — remaining cards are sorted by relevance (descending) then recency (most recent first) and capped at **12 cards**, keeping the synthesis prompt inside the 2 048-token context window after boilerplate.
+
+4. **Reduce** — the surviving cards are passed to `LocalAnswerEngine.answerFromEvidence()`, which asks the model to synthesize a final answer grounded strictly in the evidence. The synthesis prompt requires that numbers, names, and dates match the cards; relevance-1 items are only used when no higher-relevance support exists; and the model must respond with exactly "I don't know" when no relevance-2-or-3 card supports an answer.
+
+Small ledgers where the candidate count is at or below `searchResultLimit` keep the original single-shot answer path, so behavior on light corpora is unchanged.
+
+#### Answer validation
+
+After synthesis, `AnswerValidator` runs a separate model session to verify the draft answer against the evidence cards. It returns one of three verdicts:
+
+| Verdict | Meaning | UI treatment |
+|---|---|---|
+| **SUPPORTED** | Every claim in the answer is backed by a relevance-2-or-3 card. | "Validated" notice shown. |
+| **PARTIAL** | Answer is mostly supported but contains at least one ungrounded claim. | Answer kept; tertiary-tinted container and one-line reason shown. |
+| **UNSUPPORTED** | The answer is not substantiated by the evidence. | Answer replaced with an explicit "I don't know" sentinel; error-tinted container and one-line reason shown. |
+
+The validator call is skipped when the synthesizer already self-rejected (returned "I don't know"), avoiding a redundant inference round.
 
 ## Build And Run
 
