@@ -64,6 +64,19 @@ data class GeneratedAnswer(
     val text: String,
     val modelLabel: String,
     val sourceCount: Int,
+    val validation: AnswerValidation = AnswerValidation(verdict = AnswerVerdict.UNVALIDATED),
+)
+
+enum class AnswerVerdict {
+    SUPPORTED,
+    PARTIAL,
+    UNSUPPORTED,
+    UNVALIDATED,
+}
+
+data class AnswerValidation(
+    val verdict: AnswerVerdict,
+    val reason: String? = null,
 )
 
 data class SemanticSearchResponse(

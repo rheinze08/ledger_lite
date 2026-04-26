@@ -36,6 +36,7 @@ class LocalAggregationCoordinator(
     private val answerEngine = LocalAnswerEngine(context)
     private val evidenceGate = StageEvidenceGate(context)
     private val evidenceMapper = BroadScanEvidenceMapper(context)
+    private val answerValidator = AnswerValidator(context)
     private val zoneId = ZoneId.systemDefault()
 
     suspend fun runAggregation(
@@ -529,7 +530,13 @@ class LocalAggregationCoordinator(
                 evidenceMapper.extract(normalized, candidates, settings)
             }.getOrNull().orEmpty()
             if (cards.isNotEmpty()) {
-                runCatching { answerEngine.answerFromEvidence(normalized, cards, settings) }.getOrNull()
+                // Cap evidence forwarded to synthesis so a 32-note scan can't blow the
+                // 2048-token window. Cards are already sorted by relevance desc, recency desc.
+                val synthesisCards = cards.take(MAX_EVIDENCE_FOR_SYNTHESIS)
+                val draft = runCatching {
+                    answerEngine.answerFromEvidence(normalized, synthesisCards, settings)
+                }.getOrNull()
+                draft?.let { validateAnswer(it, normalized, synthesisCards, settings) }
             } else {
                 val answerDocuments = buildAnswerDocuments(noteHits, noteMap, emptyMap())
                 runCatching { answerEngine.answer(normalized, answerDocuments, settings) }.getOrNull()
@@ -548,6 +555,18 @@ class LocalAggregationCoordinator(
                     add("Summary model is not installed yet. Showing retrieved notes only.")
                 } else {
                     add("The local answer model did not return an answer for these results.")
+                }
+            }
+            answer?.let { generated ->
+                when (generated.validation.verdict) {
+                    AnswerVerdict.SUPPORTED -> add("Validated against the source notes.")
+                    AnswerVerdict.PARTIAL -> add(
+                        "The local validator could only partially confirm this answer — treat it as a draft."
+                    )
+                    AnswerVerdict.UNSUPPORTED -> add(
+                        "The local validator could not confirm an answer in your notes."
+                    )
+                    AnswerVerdict.UNVALIDATED -> Unit
                 }
             }
         }
@@ -755,6 +774,42 @@ class LocalAggregationCoordinator(
             .toList()
     }
 
+    private suspend fun validateAnswer(
+        draft: GeneratedAnswer,
+        question: String,
+        cards: List<EvidenceCard>,
+        settings: LocalAiSettings,
+    ): GeneratedAnswer {
+        // If the synthesizer already declined to answer, skip the second LLM round-trip and
+        // surface the IDK directly. The validator would just confirm UNSUPPORTED anyway.
+        if (looksLikeIdk(draft.text)) {
+            return draft.copy(
+                text = IDK_RESPONSE,
+                validation = AnswerValidation(
+                    verdict = AnswerVerdict.UNSUPPORTED,
+                    reason = "Synthesizer returned no confident answer.",
+                ),
+            )
+        }
+
+        val validation = runCatching {
+            answerValidator.validate(question, cards, draft.text, settings)
+        }.getOrNull() ?: AnswerValidation(verdict = AnswerVerdict.UNVALIDATED)
+
+        return when (validation.verdict) {
+            AnswerVerdict.UNSUPPORTED -> draft.copy(
+                text = IDK_RESPONSE,
+                validation = validation,
+            )
+            else -> draft.copy(validation = validation)
+        }
+    }
+
+    private fun looksLikeIdk(answer: String): Boolean {
+        val trimmed = answer.trim().lowercase()
+        return IDK_DRAFT_PREFIXES.any(trimmed::startsWith)
+    }
+
     private fun stageIsSufficient(
         evaluator: StageEvidenceGate.Evaluator?,
         query: String,
@@ -901,6 +956,30 @@ class LocalAggregationCoordinator(
         // source is a paraphrase with no synthesis value. Mirrors MIN_ROLLUPS_PER_STAGE so the
         // creation and search sides share the same threshold intuition.
         private const val MIN_SOURCES_PER_ROLLUP = 2
+
+        // Cap evidence cards forwarded to the synthesis prompt. With ~340 chars per card
+        // (date + relevance + fact + quote) twelve cards stay comfortably inside the
+        // 2048-token compiled window after the prompt boilerplate and answer headroom.
+        private const val MAX_EVIDENCE_FOR_SYNTHESIS = 12
+
+        // Sentinel surfaced to the user when no answer is supported by the evidence. This
+        // matches the literal string the synthesis prompt is told to emit, so a correctly
+        // self-rejecting model and a validator-rejected one produce the same UI text.
+        private const val IDK_RESPONSE = "I don't know — your notes don't appear to contain an answer to that question."
+
+        // Heuristic prefixes the synthesizer typically uses when it decides not to answer.
+        // Hits trigger the IDK fallback without spending a validator call.
+        private val IDK_DRAFT_PREFIXES = listOf(
+            "i don't know",
+            "i dont know",
+            "i do not know",
+            "i couldn't find",
+            "i could not find",
+            "no information",
+            "the notes do not",
+            "the notes don't",
+            "no relevant",
+        )
     }
 }
 

@@ -98,26 +98,41 @@ class LocalAnswerEngine(private val context: Context) {
                 append("- [")
                 append(formatter.format(Instant.ofEpochMilli(card.createdAtEpochMs)))
                 append("] (relevance ").append(card.relevance).append(") ")
-                append(sanitizeText(card.fact, 220))
+                append(sanitizeText(card.fact, 200))
                 if (card.quote.isNotBlank()) {
                     append(" — \"")
-                    append(sanitizeText(card.quote, 140))
+                    append(sanitizeText(card.quote, 120))
                     append('"')
                 }
             }
         }
 
+        // Strict grounding: the model is told to refuse rather than guess. Combined with
+        // AnswerValidator this gives two independent chances to catch unsupported answers.
         return """
-            Answer the question using only the evidence items below. Each item is a fact extracted
-            from one note, with its date and a relevance score from 1 (passing mention) to 3 (direct).
-            Prefer higher-relevance items. If items disagree, surface the disagreement briefly. If the
-            evidence does not actually answer the question, say so directly. Keep the answer concise.
+            Answer the question using ONLY the evidence items below. Each item is a fact
+            extracted from one of the user's notes, with its date and a relevance score from 1
+            (passing mention) to 3 (directly answers the question).
+
+            Rules:
+            - Use only facts that appear in the evidence. Do not add outside knowledge.
+            - Numbers, names, and dates in your answer must match the evidence exactly.
+            - Prefer items with higher relevance. Ignore relevance-1 items unless no stronger
+              item exists, and treat a single relevance-1 item as insufficient on its own.
+            - If items disagree, name the disagreement in one short sentence.
+            - If the evidence does not actually answer the question, or if no item with
+              relevance 2 or 3 supports an answer, respond with EXACTLY:
+              I don't know
+
+            Keep the answer to 1-3 sentences. No preamble, no citations, no quoted evidence.
 
             Question:
             ${sanitizeText(question, 400)}
 
             Evidence:
             $evidenceBlock
+
+            Answer:
         """.trimIndent()
     }
 
