@@ -71,6 +71,7 @@ import com.voiceledger.lite.data.LocalStats
 import com.voiceledger.lite.data.NoteWithLabels
 import com.voiceledger.lite.data.RollupGranularity
 import com.voiceledger.lite.semantic.AggregationCheckpoint
+import com.voiceledger.lite.semantic.AnswerVerdict
 import com.voiceledger.lite.semantic.GeneratedAnswer
 import com.voiceledger.lite.semantic.LocalModelArtifactStatus
 import com.voiceledger.lite.semantic.LocalModelInstallState
@@ -1153,23 +1154,43 @@ private fun SearchCard(
 
 @Composable
 private fun AnswerPanel(answer: GeneratedAnswer) {
+    val containerColor = when (answer.validation.verdict) {
+        AnswerVerdict.UNSUPPORTED -> MaterialTheme.colorScheme.errorContainer
+        AnswerVerdict.PARTIAL -> MaterialTheme.colorScheme.tertiaryContainer
+        else -> MaterialTheme.colorScheme.primaryContainer
+    }
+    val verdictLabel = when (answer.validation.verdict) {
+        AnswerVerdict.SUPPORTED -> "Validated"
+        AnswerVerdict.PARTIAL -> "Partially supported"
+        AnswerVerdict.UNSUPPORTED -> "No confident answer"
+        AnswerVerdict.UNVALIDATED -> null
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         tonalElevation = 2.dp,
-        color = MaterialTheme.colorScheme.primaryContainer,
+        color = containerColor,
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text("Answer", style = MaterialTheme.typography.titleMedium)
+            val sourceLine = "Generated with ${answer.modelLabel} from ${answer.sourceCount} retrieved source(s)."
+            val verdictLine = verdictLabel?.let { " · $it" }.orEmpty()
             Text(
-                "Generated with ${answer.modelLabel} from ${answer.sourceCount} retrieved source(s).",
+                sourceLine + verdictLine,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(answer.text, style = MaterialTheme.typography.bodyMedium)
+            answer.validation.reason?.takeIf { it.isNotBlank() }?.let { reason ->
+                Text(
+                    reason,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
